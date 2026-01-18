@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart' as geo;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
 import '../../models/parking.dart';
 import '../auth/login_screen.dart';
 import '../parking/parking_details_screen.dart';
-import '../parking/parking_list_screen.dart';
 import '../owner/owner_dashboard_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../bookings/booking_history_screen.dart';
@@ -24,17 +25,21 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _error;
   Position? _currentPosition;
   final _searchController = TextEditingController();
+  GoogleMapController? _mapController;
+  Set<Marker> _markers = {};
+  LatLng? _centerLocation;
+  bool _isSearching = false;
 
   @override
   void initState() {
     super.initState();
     _getCurrentLocation();
-    _loadParkings();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _mapController?.dispose();
     super.dispose();
   }
 
@@ -44,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!serviceEnabled) {
         setState(() {
           _error = 'Location services are disabled';
+          _isLoading = false;
         });
         return;
       }
@@ -54,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (permission == LocationPermission.denied) {
           setState(() {
             _error = 'Location permissions are denied';
+            _isLoading = false;
           });
           return;
         }
@@ -62,14 +69,25 @@ class _HomeScreenState extends State<HomeScreen> {
       if (permission == LocationPermission.deniedForever) {
         setState(() {
           _error = 'Location permissions are permanently denied';
+          _isLoading = false;
         });
         return;
       }
 
       _currentPosition = await Geolocator.getCurrentPosition();
+      if (_currentPosition != null) {
+        setState(() {
+          _centerLocation = LatLng(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+          );
+        });
+        _loadParkings();
+      }
     } catch (e) {
       setState(() {
         _error = 'Error getting location: $e';
+        _isLoading = false;
       });
     }
   }
@@ -82,8 +100,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final response = await ApiService.getParkings(
-        latitude: _currentPosition?.latitude,
-        longitude: _currentPosition?.longitude,
+        latitude: _centerLocation?.latitude ?? _currentPosition?.latitude,
+        longitude: _centerLocation?.longitude ?? _currentPosition?.longitude,
         radius: 5000,
       );
 
@@ -94,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
               .toList();
           _isLoading = false;
         });
+        _updateMarkers();
       } else {
         setState(() {
           _error = response['message'] ?? 'Failed to load parkings';
@@ -108,21 +127,185 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _handleSearch() {
-    final query = _searchController.text.trim();
-    if (query.isEmpty) {
-      _loadParkings();
-      return;
+  void _updateMarkers() {
+    final markers = <Marker>{};
+
+    for (var parking in _parkings) {
+      final markerId = MarkerId(parking.id);
+      markers.add(
+        Marker(
+          markerId: markerId,
+          position: LatLng(
+            parking.location.latitude,
+            parking.location.longitude,
+          ),
+          
+          onTap: () => _showParkingBottomSheet(parking),
+        ),
+      );
     }
 
+    setState(() {
+      _markers = markers;
+    });
+  }
+
+  void _showParkingBottomSheet(Parking parking) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          parking.name,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          parking.address.fullAddress,
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.local_parking, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${parking.availableSlots}/${parking.totalSlots} slots available',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '₹${parking.pricePerHour.toStringAsFixed(0)}/hr',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                  ),
+                ],
+              ),
+              if (parking.rating.average > 0) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.star, size: 16, color: Colors.amber),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${parking.rating.average.toStringAsFixed(1)} (${parking.rating.count})',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ParkingListScreen(
-          searchQuery: query,
-          currentPosition: _currentPosition,
+                        builder: (_) => ParkingDetailsScreen(
+                          parkingId: parking.id,
+                        ),
+                      ),
+                    );
+                  },
+                  child: const Text('View Details'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _handleSearch() async {
+    final query = _searchController.text.trim();
+    
+    if (query.isEmpty) {
+      if (_currentPosition != null) {
+        setState(() {
+          _centerLocation = LatLng(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+          );
+        });
+        _moveCameraToLocation(_centerLocation!);
+        _loadParkings();
+      }
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      List<geo.Location> locations = await geo.locationFromAddress(query);
+      if (locations.isNotEmpty) {
+        final location = locations.first;
+        final latLng = LatLng(location.latitude, location.longitude);
+        
+        setState(() {
+          _centerLocation = latLng;
+        });
+        
+        _moveCameraToLocation(latLng);
+        _loadParkings();
+      } else {
+        setState(() {
+          _error = 'Location not found';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Error searching location: $e';
+      });
+    } finally {
+      setState(() {
+        _isSearching = false;
+      });
+    }
+  }
+
+  void _moveCameraToLocation(LatLng location) {
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(location, 14.0),
+    );
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+    if (_centerLocation != null) {
+      _moveCameraToLocation(_centerLocation!);
+    }
   }
 
   @override
@@ -225,18 +408,34 @@ class _HomeScreenState extends State<HomeScreen> {
                               icon: const Icon(Icons.clear),
                               onPressed: () {
                                 _searchController.clear();
+                                if (_currentPosition != null) {
+                                  setState(() {
+                                    _centerLocation = LatLng(
+                                      _currentPosition!.latitude,
+                                      _currentPosition!.longitude,
+                                    );
+                                  });
+                                  _moveCameraToLocation(_centerLocation!);
                                 _loadParkings();
+                                }
                               },
                             )
                           : null,
                     ),
                     onSubmitted: (_) => _handleSearch(),
+                    onChanged: (_) => setState(() {}),
                   ),
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: _handleSearch,
+                  icon: _isSearching
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.search),
+                  onPressed: _isSearching ? null : _handleSearch,
                   style: IconButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
@@ -272,137 +471,20 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       )
-                    : _parkings.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.local_parking_outlined,
-                                  size: 64,
-                                  color: Colors.grey[400],
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No parking spaces found',
-                                  style: TextStyle(color: Colors.grey[600]),
-                                ),
-                              ],
-                            ),
+                    : _centerLocation == null
+                        ? const Center(
+                            child: Text('Waiting for location...'),
                           )
-                        : ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _parkings.length,
-                            itemBuilder: (context, index) {
-                              final parking = _parkings[index];
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 16),
-                                child: InkWell(
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => ParkingDetailsScreen(
-                                          parkingId: parking.id,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                parking.name,
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .titleLarge
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                              ),
-                                            ),
-                                            if (parking.distance != null)
-                                              Chip(
-                                                label: Text(
-                                                  '${parking.distance!.toStringAsFixed(1)} km',
-                                                ),
-                                                avatar: const Icon(
-                                                  Icons.location_on,
-                                                  size: 18,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                          parking.address.fullAddress,
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.local_parking,
-                                              size: 16,
-                                              color: Colors.grey[600],
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              '${parking.availableSlots}/${parking.totalSlots} slots available',
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
-                                            const Spacer(),
-                                            Text(
-                                              '₹${parking.pricePerHour.toStringAsFixed(0)}/hr',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium
-                                                  ?.copyWith(
-                                                    fontWeight:
-                                                        FontWeight.bold,
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .primary,
-                                                  ),
-                                            ),
-                                          ],
-                                        ),
-                                        if (parking.rating.average > 0) ...[
-                                          const SizedBox(height: 8),
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                Icons.star,
-                                                size: 16,
-                                                color: Colors.amber,
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                '${parking.rating.average.toStringAsFixed(1)} (${parking.rating.count})',
-                                                style: TextStyle(
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
+                        : GoogleMap(
+                            onMapCreated: _onMapCreated,
+                            initialCameraPosition: CameraPosition(
+                              target: _centerLocation!,
+                              zoom: 14.0,
+                            ),
+                            markers: _markers,
+                            myLocationEnabled: true,
+                            myLocationButtonEnabled: true,
+                            mapType: MapType.normal,
                           ),
           ),
         ],

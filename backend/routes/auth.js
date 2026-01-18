@@ -83,11 +83,10 @@ router.post('/register', [
 
 /**
  * @route   POST /api/auth/login
- * @desc    Login user
+ * @desc    Login user (supports both admin username/password and regular email/password)
  * @access  Public
  */
 router.post('/login', [
-  body('email').isEmail().withMessage('Please provide a valid email'),
   body('password').notEmpty().withMessage('Password is required'),
 ], async (req, res) => {
   try {
@@ -101,7 +100,58 @@ router.post('/login', [
       });
     }
 
-    const { email, password } = req.body;
+    const { email, username, password } = req.body;
+
+    // Admin credentials check (username-based login)
+    const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+
+    // Check if this is an admin login attempt (username provided or username matches admin)
+    if (username && username === adminUsername && password === adminPassword) {
+      // Generate admin token - we'll use a special admin ID or find/create admin user
+      // For simplicity, we'll use a special token with admin role
+      // In production, you might want to have an admin user in the database
+      const adminToken = jwt.sign(
+        { 
+          id: 'admin_special_id',
+          role: 'admin',
+          username: adminUsername 
+        },
+        process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production',
+        { expiresIn: process.env.JWT_EXPIRE || '7d' }
+      );
+
+      return res.json({
+        success: true,
+        message: 'Admin login successful',
+        data: {
+          user: {
+            id: 'admin_special_id',
+            name: 'Admin',
+            email: 'admin@smartpark.com',
+            role: 'admin',
+            username: adminUsername,
+          },
+          token: adminToken,
+        },
+      });
+    }
+
+    // Regular user login (email-based)
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or username is required',
+      });
+    }
+
+    // Validate email format for regular login
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email',
+      });
+    }
 
     // Find user and include password
     const user = await User.findOne({ email }).select('+password');

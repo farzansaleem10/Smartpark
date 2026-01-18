@@ -19,7 +19,21 @@ const authenticate = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_super_secret_jwt_key_change_this_in_production');
     
-    // Get user from database
+    // Check if this is an admin token (special admin login)
+    if (decoded.id === 'admin_special_id' && decoded.role === 'admin') {
+      // Create a mock admin user object for consistency
+      req.user = {
+        _id: 'admin_special_id',
+        id: 'admin_special_id',
+        name: 'Admin',
+        email: 'admin@smartpark.com',
+        role: 'admin',
+        username: decoded.username || process.env.ADMIN_USERNAME || 'admin',
+      };
+      return next();
+    }
+    
+    // Get user from database for regular users
     const user = await User.findById(decoded.id).select('-password');
     
     if (!user) {

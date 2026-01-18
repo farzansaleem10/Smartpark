@@ -75,9 +75,10 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // Login user
+  // Login user (supports both email and username for admin)
   Future<bool> login({
-    required String email,
+    String? email,
+    String? username,
     required String password,
   }) async {
     _isLoading = true;
@@ -87,6 +88,7 @@ class AuthService extends ChangeNotifier {
     try {
       final response = await ApiService.login(
         email: email,
+        username: username,
         password: password,
       );
 

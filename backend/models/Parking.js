@@ -69,6 +69,21 @@ const parkingSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  approvalStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending',
+  },
+  documents: {
+    license: { type: String, default: '' },
+    idProof: { type: String, default: '' },
+    ownershipProof: { type: String, default: '' },
+    additionalDocuments: [{ type: String }],
+  },
+  rejectionReason: {
+    type: String,
+    default: '',
+  },
   rating: {
     average: { type: Number, default: 0, min: 0, max: 5 },
     count: { type: Number, default: 0 },

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import 'register_screen.dart';
 import '../home/home_screen.dart';
+import '../admin/admin_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -30,15 +31,28 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     final authService = Provider.of<AuthService>(context, listen: false);
+    final loginInput = _emailController.text.trim();
+    
+    // Determine if input is username or email
+    final isEmail = loginInput.contains('@');
+    
     final success = await authService.login(
-      email: _emailController.text.trim(),
+      email: isEmail ? loginInput : null,
+      username: !isEmail ? loginInput : null,
       password: _passwordController.text,
     );
 
     if (success && mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
+      // Check if user is admin and redirect accordingly
+      if (authService.user?.role == 'admin') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+        );
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -87,17 +101,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 48),
                 TextFormField(
                   controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
+                  keyboardType: TextInputType.text,
                   decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
+                    labelText: 'Email or Username',
+                    prefixIcon: Icon(Icons.person_outlined),
+                    hintText: 'Enter email or username',
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Please enter a valid email';
+                      return 'Please enter your email or username';
                     }
                     return null;
                   },
