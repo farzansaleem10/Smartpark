@@ -23,15 +23,19 @@ dependencies:
   # Storage
   shared_preferences: ^2.2.2
   
-  # QR Code
+  # QR Codey
   qr_flutter: ^4.1.0
   mobile_scanner: ^5.2.3
 
   
   # Location
   geolocator: ^10.1.0
-  geocoding: ^2.1.1
-  google_maps_flutter: ^2.5.0
+
+
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+
+  flutter_dotenv: ^5.1.0
   
   # Image
   image_picker: ^1.0.5

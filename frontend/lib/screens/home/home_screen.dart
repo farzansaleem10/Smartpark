@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart' as geo;
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
+
 import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
 import '../../models/parking.dart';
@@ -12,6 +16,8 @@ import '../owner/owner_dashboard_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../bookings/booking_history_screen.dart';
 
+const LatLng _defaultCenter = LatLng(20.5937, 78.9629); // India center
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -20,15 +26,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Parking> _parkings = [];
-  bool _isLoading = true;
-  String? _error;
+  final MapController _mapController = MapController();
+  final TextEditingController _searchController = TextEditingController();
+
   Position? _currentPosition;
-  final _searchController = TextEditingController();
-  GoogleMapController? _mapController;
-  Set<Marker> _markers = {};
   LatLng? _centerLocation;
+
+  List<Parking> _parkings = [];
+  bool _isLoading = false;
   bool _isSearching = false;
+  String? _error;
+  bool _mapReady = false;
 
   @override
   void initState() {
@@ -39,453 +47,314 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    _mapController?.dispose();
     super.dispose();
   }
 
+  /* ---------------- LOCATION ---------------- */
+
   Future<void> _getCurrentLocation() async {
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        setState(() {
-          _error = 'Location services are disabled';
-          _isLoading = false;
-        });
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        setState(() => _error = 'Location services are disabled');
         return;
       }
 
-      LocationPermission permission = await Geolocator.checkPermission();
+      var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          setState(() {
-            _error = 'Location permissions are denied';
-            _isLoading = false;
-          });
-          return;
-        }
       }
 
-      if (permission == LocationPermission.deniedForever) {
-        setState(() {
-          _error = 'Location permissions are permanently denied';
-          _isLoading = false;
-        });
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        setState(() => _error = 'Location permission denied');
         return;
       }
 
-      _currentPosition = await Geolocator.getCurrentPosition();
-      if (_currentPosition != null) {
-        setState(() {
-          _centerLocation = LatLng(
-            _currentPosition!.latitude,
-            _currentPosition!.longitude,
-          );
-        });
-        _loadParkings();
+      _currentPosition = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.best,
+      );
+
+      _centerLocation = LatLng(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      );
+
+      if (_mapReady) {
+        _mapController.move(_centerLocation!, 15);
       }
+
+      _loadParkings();
     } catch (e) {
-      setState(() {
-        _error = 'Error getting location: $e';
-        _isLoading = false;
-      });
+      setState(() => _error = e.toString());
     }
   }
 
+  /* ---------------- PARKINGS ---------------- */
+
   Future<void> _loadParkings() async {
+    if (_centerLocation == null) return;
+
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      final response = await ApiService.getParkings(
-        latitude: _centerLocation?.latitude ?? _currentPosition?.latitude,
-        longitude: _centerLocation?.longitude ?? _currentPosition?.longitude,
+      final res = await ApiService.getParkings(
+        latitude: _centerLocation!.latitude,
+        longitude: _centerLocation!.longitude,
         radius: 5000,
       );
 
-      if (response['success'] && response['data']?['parkings'] != null) {
-        setState(() {
-          _parkings = (response['data']['parkings'] as List)
-              .map((p) => Parking.fromJson(p))
-              .toList();
-          _isLoading = false;
-        });
-        _updateMarkers();
+      if (res['success']) {
+        _parkings = (res['data']['parkings'] as List)
+            .map((e) => Parking.fromJson(e))
+            .toList();
       } else {
-        setState(() {
-          _error = response['message'] ?? 'Failed to load parkings';
-          _isLoading = false;
-        });
+        _error = res['message'];
       }
     } catch (e) {
-      setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
-        _isLoading = false;
-      });
+      _error = e.toString();
     }
+
+    setState(() => _isLoading = false);
   }
 
-  void _updateMarkers() {
-    final markers = <Marker>{};
+  /* ---------------- SEARCH ---------------- */
 
-    for (var parking in _parkings) {
-      final markerId = MarkerId(parking.id);
-      markers.add(
-        Marker(
-          markerId: markerId,
-          position: LatLng(
-            parking.location.latitude,
-            parking.location.longitude,
-          ),
-          
-          onTap: () => _showParkingBottomSheet(parking),
-        ),
+  Future<void> _searchLocation() async {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) return;
+
+    setState(() => _isSearching = true);
+
+    try {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=1',
       );
-    }
 
-    setState(() {
-      _markers = markers;
-    });
+      final res = await http.get(
+        uri,
+        headers: {'User-Agent': 'smart-parking-app'},
+      );
+
+      final data = jsonDecode(res.body);
+      if (data.isNotEmpty) {
+        final lat = double.parse(data[0]['lat']);
+        final lon = double.parse(data[0]['lon']);
+
+        _centerLocation = LatLng(lat, lon);
+
+        if (_mapReady) {
+          _mapController.move(_centerLocation!, 15);
+        }
+
+        _loadParkings();
+      }
+    } catch (_) {}
+
+    setState(() => _isSearching = false);
   }
+
+  /* ---------------- UI HELPERS ---------------- */
 
   void _showParkingBottomSheet(Parking parking) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          parking.name,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          parking.address.fullAddress,
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ],
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(parking.name,
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 6),
+            Text(parking.address.fullAddress),
+            const SizedBox(height: 12),
+            Text(
+              '₹${parking.pricePerHour}/hr • '
+              '${parking.availableSlots}/${parking.totalSlots} slots',
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ParkingDetailsScreen(parkingId: parking.id),
                     ),
-                  ),
-                ],
+                  );
+                },
+                child: const Text('View Details'),
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Icon(Icons.local_parking, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${parking.availableSlots}/${parking.totalSlots} slots available',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '₹${parking.pricePerHour.toStringAsFixed(0)}/hr',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                  ),
-                ],
-              ),
-              if (parking.rating.average > 0) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.star, size: 16, color: Colors.amber),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${parking.rating.average.toStringAsFixed(1)} (${parking.rating.count})',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-    Navigator.of(context).push(
-      MaterialPageRoute(
-                        builder: (_) => ParkingDetailsScreen(
-                          parkingId: parking.id,
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text('View Details'),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Future<void> _handleSearch() async {
-    final query = _searchController.text.trim();
-    
-    if (query.isEmpty) {
-      if (_currentPosition != null) {
-        setState(() {
-          _centerLocation = LatLng(
-            _currentPosition!.latitude,
-            _currentPosition!.longitude,
-          );
-        });
-        _moveCameraToLocation(_centerLocation!);
-        _loadParkings();
-      }
-      return;
-    }
-
-    setState(() {
-      _isSearching = true;
-    });
-
-    try {
-      List<geo.Location> locations = await geo.locationFromAddress(query);
-      if (locations.isNotEmpty) {
-        final location = locations.first;
-        final latLng = LatLng(location.latitude, location.longitude);
-        
-        setState(() {
-          _centerLocation = latLng;
-        });
-        
-        _moveCameraToLocation(latLng);
-        _loadParkings();
-      } else {
-        setState(() {
-          _error = 'Location not found';
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _error = 'Error searching location: $e';
-      });
-    } finally {
-      setState(() {
-        _isSearching = false;
-      });
-    }
-  }
-
-  void _moveCameraToLocation(LatLng location) {
-    _mapController?.animateCamera(
-      CameraUpdate.newLatLngZoom(location, 14.0),
-    );
-  }
-
-  void _onMapCreated(GoogleMapController controller) {
-    _mapController = controller;
-    if (_centerLocation != null) {
-      _moveCameraToLocation(_centerLocation!);
-    }
-  }
+  /* ---------------- BUILD ---------------- */
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
-    final user = authService.user;
+    final auth = Provider.of<AuthService>(context);
+    final user = auth.user;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Smart Parking'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadParkings,
-          ),
           PopupMenuButton(
-            itemBuilder: (context) => [
-              if (user?.role == 'owner')
-                const PopupMenuItem(
-                  value: 'owner',
-                  child: Row(
-                    children: [
-                      Icon(Icons.dashboard),
-                      SizedBox(width: 8),
-                      Text('Owner Dashboard'),
-                    ],
-                  ),
-                ),
-              if (user?.role == 'admin')
-                const PopupMenuItem(
-                  value: 'admin',
-                  child: Row(
-                    children: [
-                      Icon(Icons.admin_panel_settings),
-                      SizedBox(width: 8),
-                      Text('Admin Dashboard'),
-                    ],
-                  ),
-                ),
-              const PopupMenuItem(
-                value: 'history',
-                child: Row(
-                  children: [
-                    Icon(Icons.history),
-                    SizedBox(width: 8),
-                    Text('Booking History'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout),
-                    SizedBox(width: 8),
-                    Text('Logout'),
-                  ],
-                ),
-              ),
-            ],
-            onSelected: (value) async {
-              if (value == 'owner') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const OwnerDashboardScreen()),
+            onSelected: (v) async {
+              if (v == 'logout') {
+                await auth.logout();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
                 );
-              } else if (value == 'admin') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+              }
+              if (v == 'owner') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const OwnerDashboardScreen()),
                 );
-              } else if (value == 'history') {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const BookingHistoryScreen()),
+              }
+              if (v == 'admin') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const AdminDashboardScreen()),
                 );
-              } else if (value == 'logout') {
-                await authService.logout();
-                if (mounted) {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  );
-                }
+              }
+              if (v == 'history') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const BookingHistoryScreen()),
+                );
               }
             },
+            itemBuilder: (_) => [
+              if (user?.role == 'owner')
+                const PopupMenuItem(value: 'owner', child: Text('Owner')),
+              if (user?.role == 'admin')
+                const PopupMenuItem(value: 'admin', child: Text('Admin')),
+              const PopupMenuItem(value: 'history', child: Text('History')),
+              const PopupMenuItem(value: 'logout', child: Text('Logout')),
+            ],
           ),
         ],
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Search by location...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                if (_currentPosition != null) {
-                                  setState(() {
-                                    _centerLocation = LatLng(
-                                      _currentPosition!.latitude,
-                                      _currentPosition!.longitude,
-                                    );
-                                  });
-                                  _moveCameraToLocation(_centerLocation!);
-                                _loadParkings();
-                                }
-                              },
-                            )
-                          : null,
-                    ),
-                    onSubmitted: (_) => _handleSearch(),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: _isSearching
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.search),
-                  onPressed: _isSearching ? null : _handleSearch,
-                  style: IconButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: _searchController,
+              onSubmitted: (_) => _searchLocation(),
+              decoration: InputDecoration(
+                hintText: 'Search location',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _isSearching
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          if (_currentPosition != null) {
+                            _centerLocation = LatLng(
+                              _currentPosition!.latitude,
+                              _currentPosition!.longitude,
+                            );
+                            _mapController.move(_centerLocation!, 15);
+                            _loadParkings();
+                          }
+                        },
+                      ),
+              ),
             ),
           ),
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              size: 64,
-                              color: Colors.grey[400],
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: _defaultCenter,
+                    initialZoom: 14,
+                    onMapReady: () {
+                      _mapReady = true;
+                      if (_centerLocation != null) {
+                        _mapController.move(_centerLocation!, 15);
+                      }
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.smartparking.app',
+                    ),
+                    MarkerLayer(
+                      markers: _parkings
+                          .map(
+                            (p) => Marker(
+                              point: LatLng(
+                                p.location.latitude,
+                                p.location.longitude,
+                              ),
+                              width: 40,
+                              height: 40,
+                              child: GestureDetector(
+                                onTap: () =>
+                                    _showParkingBottomSheet(p),
+                                child: const Icon(
+                                  Icons.local_parking,
+                                  color: Colors.red,
+                                  size: 36,
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              _error!,
-                              style: TextStyle(color: Colors.grey[600]),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: _loadParkings,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
-                      )
-                    : _centerLocation == null
-                        ? const Center(
-                            child: Text('Waiting for location...'),
                           )
-                        : GoogleMap(
-                            onMapCreated: _onMapCreated,
-                            initialCameraPosition: CameraPosition(
-                              target: _centerLocation!,
-                              zoom: 14.0,
-                            ),
-                            markers: _markers,
-                            myLocationEnabled: true,
-                            myLocationButtonEnabled: true,
-                            mapType: MapType.normal,
-                          ),
+                          .toList(),
+                    ),
+                  ],
+                ),
+                if (_isLoading)
+                  const Center(child: CircularProgressIndicator()),
+                if (_error != null)
+                  Positioned(
+                    bottom: 20,
+                    left: 20,
+                    right: 20,
+                    child: Material(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
