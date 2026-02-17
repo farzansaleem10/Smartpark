@@ -4,6 +4,7 @@ import '../../services/auth_service.dart';
 import 'register_screen.dart';
 import '../home/home_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
+import '../owner/owner_dashboard_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -41,26 +42,32 @@ class _LoginScreenState extends State<LoginScreen> {
       username: !isEmail ? loginInput : null,
       password: _passwordController.text,
     );
+if (success && mounted) {
+  final role = authService.user?.role;
 
-    if (success && mounted) {
-      // Check if user is admin and redirect accordingly
-      if (authService.user?.role == 'admin') {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-        );
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
-      }
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authService.error ?? 'Login failed'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+  if (role == 'admin') {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+    );
+  } else if (role == 'owner') {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const OwnerDashboardScreen()),
+    );
+  } else {
+    // normal user
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
+  }
+} else if (mounted) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(authService.error ?? 'Login failed'),
+      backgroundColor: Colors.red,
+    ),
+  );
+}
+
   }
 
   @override

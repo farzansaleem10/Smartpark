@@ -270,130 +270,162 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
 
-      body: Row(
-        children: [
-          /* ================= MAP ================= */
-          Expanded(
-            flex: 3,
-            child: Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: _mapCenter,
-                    initialZoom: 14,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.smartparking.app',
-                    ),
-
-                    if (_routePoints.isNotEmpty)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: _routePoints,
-                            strokeWidth: 5,
-                            color: Colors.blue,
-                          ),
-                        ],
-                      ),
-
-                    MarkerLayer(
-                      markers: [
-                        if (_userPosition != null)
-                          Marker(
-                            point: LatLng(
-                              _userPosition!.latitude,
-                              _userPosition!.longitude,
-                            ),
-                            width: 20,
-                            height: 20,
-                            child: const Icon(
-                              Icons.my_location,
-                              color: Colors.blue,
-                            ),
-                          ),
-
-                        ..._parkings.map(
-                          (p) => Marker(
-                            point: LatLng(
-                              p.location.latitude,
-                              p.location.longitude,
-                            ),
-                            width: 50,
-                            height: 50,
-                            child: GestureDetector(
-                              onTap: () => _showParkingSheet(p),
-                              child: Image.asset(
-                                'assets/icons/parking_pin.png',
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-
-                Positioned(
-                  top: 20,
-                  left: 16,
-                  right: 16,
-                  child: Material(
-                    elevation: 6,
-                    borderRadius: BorderRadius.circular(12),
-                    child: TextField(
-                      controller: _searchController,
-                      onSubmitted: _searchLocation,
-                      decoration: const InputDecoration(
-                        hintText: 'Search location',
-                        prefixIcon: Icon(Icons.search),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.all(14),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          /* ================= SIDE PANEL ================= */
-          Container(
-            width: 300,
-            padding: const EdgeInsets.all(12),
-            color: Colors.white,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Available Parkings',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const Divider(),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _parkings.length,
-                    itemBuilder: (_, i) {
-                      final p = _parkings[i];
-                      return ListTile(
-                        leading: const Icon(Icons.local_parking),
-                        title: Text(p.name),
-                        subtitle: Text(
-                            '₹${p.pricePerHour}/hr • ${p.availableSlots} slots'),
-                        onTap: () => _showParkingSheet(p),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+     body: Stack(
+  children: [
+    /* ================= MAP ================= */
+    FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: _mapCenter,
+        initialZoom: 14,
       ),
+      children: [
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'com.smartparking.app',
+        ),
+
+        if (_routePoints.isNotEmpty)
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: _routePoints,
+                strokeWidth: 5,
+                color: Colors.blue,
+              ),
+            ],
+          ),
+
+        MarkerLayer(
+          markers: [
+            if (_userPosition != null)
+              Marker(
+                point: LatLng(
+                  _userPosition!.latitude,
+                  _userPosition!.longitude,
+                ),
+                width: 20,
+                height: 20,
+                child: const Icon(
+                  Icons.my_location,
+                  color: Colors.blue,
+                ),
+              ),
+
+            ..._parkings.map(
+              (p) => Marker(
+                point: LatLng(
+                  p.location.latitude,
+                  p.location.longitude,
+                ),
+                width: 50,
+                height: 50,
+                child: GestureDetector(
+                  onTap: () => _showParkingSheet(p),
+                  child: Image.asset('assets/icons/parking_pin.png'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+
+    /* ================= SEARCH BAR ================= */
+    Positioned(
+      top: 20,
+      left: 16,
+      right: 16,
+      child: Material(
+        elevation: 6,
+        borderRadius: BorderRadius.circular(12),
+        child: TextField(
+          controller: _searchController,
+          onSubmitted: _searchLocation,
+          decoration: const InputDecoration(
+            hintText: 'Search location',
+            prefixIcon: Icon(Icons.search),
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.all(14),
+          ),
+        ),
+      ),
+    ),
+
+    /* ================= BOTTOM DRAGGABLE PANEL ================= */
+   Align(
+  alignment: Alignment.bottomCenter,
+  child: DraggableScrollableSheet(
+    initialChildSize: 0.20,
+    minChildSize: 0.12,
+    maxChildSize: 0.70,
+    expand: false,
+    snap: true,
+    snapSizes: const [0.20, 0.45, 0.70],
+    builder: (context, scrollController) {
+      return Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          boxShadow: [
+            BoxShadow(blurRadius: 10, color: Colors.black26),
+          ],
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+
+            // ===== DRAG HANDLE (improved touch area) =====
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Container(
+                  width: 45,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+
+            const Text(
+              'Available Parkings',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Divider(),
+
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,   // IMPORTANT
+                itemCount: _parkings.length,
+                itemBuilder: (_, i) {
+                  final p = _parkings[i];
+                  return ListTile(
+                    leading: const Icon(Icons.local_parking),
+                    title: Text(p.name),
+                    subtitle: Text(
+                        '₹${p.pricePerHour}/hr • ${p.availableSlots} slots'),
+                    onTap: () => _showParkingSheet(p),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  ),
+)
+
+  ],
+),
+
     );
   }
 }
