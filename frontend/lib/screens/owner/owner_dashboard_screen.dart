@@ -5,6 +5,10 @@ import '../../models/parking.dart';
 import 'add_parking_screen.dart';
 import 'edit_parking_screen.dart';
 import '../parking/parking_details_screen.dart';
+import 'package:provider/provider.dart';
+import '../../services/auth_service.dart';
+import '../auth/login_screen.dart';
+
 
 class OwnerDashboardScreen extends StatefulWidget {
   const OwnerDashboardScreen({super.key});
@@ -40,21 +44,46 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Owner Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              final result = await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const AddParkingScreen(),
-                ),
-              );
-              if (result == true && mounted) {
-                _loadData();
-              }
-            },
+     actions: [
+  PopupMenuButton<String>(
+    onSelected: (value) async {
+      if (value == 'add') {
+        final result = await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const AddParkingScreen(),
           ),
-        ],
+        );
+        if (result == true && mounted) {
+          _loadData();
+        }
+      } 
+      else if (value == 'logout') {
+
+        final auth = Provider.of<AuthService>(context, listen: false);
+        await auth.logout();
+
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            (route) => false,
+          );
+        }
+      }
+    },
+    itemBuilder: (context) => const [
+      PopupMenuItem(
+        value: 'add',
+        child: Text('Add Parking Space'),
+      ),
+      PopupMenuItem(
+        value: 'logout',
+        child: Text('Logout'),
+      ),
+    ],
+  ),
+],
+
+
       ),
       body: RefreshIndicator(
         onRefresh: () async {

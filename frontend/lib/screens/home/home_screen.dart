@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -17,7 +18,7 @@ import '../owner/owner_dashboard_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../bookings/booking_history_screen.dart';
 
-const LatLng _defaultCenter = LatLng(20.5937, 78.9629); // India
+const LatLng _defaultCenter = LatLng(20.5937, 78.9629);
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -54,8 +55,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  /* ================= LOCATION ================= */
-
   Future<void> _initLocation() async {
     final perm = await Geolocator.requestPermission();
     if (perm == LocationPermission.denied ||
@@ -65,10 +64,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _updateUserPosition(pos);
 
     _posStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 5,
-      ),
+      locationSettings:
+          const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 5),
     ).listen(_updateUserPosition);
   }
 
@@ -77,11 +74,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _userPosition = pos;
       _mapCenter = LatLng(pos.latitude, pos.longitude);
     });
-
     _loadParkings();
   }
-
-  /* ================= PARKINGS ================= */
 
   Future<void> _loadParkings() async {
     if (_userPosition == null) return;
@@ -101,17 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /* ================= SEARCH ================= */
-
   Future<void> _searchLocation(String query) async {
     final uri = Uri.parse(
-      'https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=1',
-    );
+        'https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=1');
 
-    final res = await http.get(uri, headers: {
-      'User-Agent': 'smart-parking-app',
-    });
-
+    final res = await http.get(uri, headers: {'User-Agent': 'smart-parking-app'});
     final data = jsonDecode(res.body);
     if (data.isEmpty) return;
 
@@ -126,8 +114,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadParkings();
   }
 
-  /* ================= NAVIGATION ================= */
-
   Future<void> _getDirections(Parking parking) async {
     if (_userPosition == null) return;
 
@@ -138,11 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     final url = Uri.parse(
-      'https://router.project-osrm.org/route/v1/driving/'
-      '${_userPosition!.longitude},${_userPosition!.latitude};'
-      '${parking.location.longitude},${parking.location.latitude}'
-      '?overview=full&geometries=geojson',
-    );
+        'https://router.project-osrm.org/route/v1/driving/${_userPosition!.longitude},${_userPosition!.latitude};${parking.location.longitude},${parking.location.latitude}?overview=full&geometries=geojson');
 
     final res = await http.get(url);
     final data = jsonDecode(res.body);
@@ -150,14 +132,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final coords = data['routes'][0]['geometry']['coordinates'];
 
     setState(() {
-      _routePoints = coords
-          .map<LatLng>((c) => LatLng(c[1].toDouble(), c[0].toDouble()))
-          .toList();
+      _routePoints =
+          coords.map<LatLng>((c) => LatLng(c[1].toDouble(), c[0].toDouble())).toList();
       _loadingRoute = false;
     });
   }
-
-  /* ================= BOTTOM SHEET ================= */
 
   void _showParkingSheet(Parking parking) {
     showModalBottomSheet(
@@ -171,15 +150,11 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(parking.name,
-                style: Theme.of(context).textTheme.titleLarge),
+            Text(parking.name, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 6),
             Text(parking.address.fullAddress),
             const SizedBox(height: 12),
-            Text(
-              '₹${parking.pricePerHour}/hr • '
-              '${parking.availableSlots}/${parking.totalSlots} slots',
-            ),
+            Text('₹${parking.pricePerHour}/hr • ${parking.availableSlots}/${parking.totalSlots} slots'),
             const SizedBox(height: 20),
             Row(
               children: [
@@ -190,9 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              ParkingDetailsScreen(parkingId: parking.id),
-                        ),
+                            builder: (_) => ParkingDetailsScreen(parkingId: parking.id)),
                       );
                     },
                     child: const Text('View Details'),
@@ -216,8 +189,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /* ================= BUILD ================= */
-
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthService>(context);
@@ -226,206 +197,113 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Smart Parking'),
-        actions: [
-          PopupMenuButton(
-            onSelected: (v) async {
-              if (v == 'logout') {
-                await auth.logout();
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                );
-              }
-              if (v == 'owner') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const OwnerDashboardScreen()),
-                );
-              }
-              if (v == 'admin') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const AdminDashboardScreen()),
-                );
-              }
-              if (v == 'history') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const BookingHistoryScreen()),
-                );
-              }
-            },
-            itemBuilder: (_) => [
-              if (user?.role == 'owner')
-                const PopupMenuItem(value: 'owner', child: Text('Owner')),
-              if (user?.role == 'admin')
-                const PopupMenuItem(value: 'admin', child: Text('Admin')),
-              const PopupMenuItem(value: 'history', child: Text('History')),
-              const PopupMenuItem(value: 'logout', child: Text('Logout')),
+      ),
+
+      body: Stack(
+        children: [
+
+          /// MAP
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(initialCenter: _mapCenter, initialZoom: 14),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.smartparking.app',
+              ),
+              MarkerLayer(
+                markers: _parkings.map((p) {
+                  return Marker(
+                    point: LatLng(p.location.latitude, p.location.longitude),
+                    width: 50,
+                    height: 50,
+                    child: GestureDetector(
+                      onTap: () => _showParkingSheet(p),
+                      child: Image.asset('assets/icons/parking_pin.png'),
+                    ),
+                  );
+                }).toList(),
+              ),
             ],
+          ),
+
+          /// SEARCH BAR
+          Positioned(
+            top: 20,
+            left: 16,
+            right: 16,
+            child: Material(
+              elevation: 6,
+              borderRadius: BorderRadius.circular(12),
+              child: TextField(
+                controller: _searchController,
+                onSubmitted: _searchLocation,
+                decoration: const InputDecoration(
+                  hintText: 'Search location',
+                  prefixIcon: Icon(Icons.search),
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.all(14),
+                ),
+              ),
+            ),
+          ),
+
+          /// DRAGGABLE PANEL
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: DraggableScrollableSheet(
+              initialChildSize: 0.20,
+              minChildSize: 0.12,
+              maxChildSize: 0.70,
+              expand: false,
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(20)),
+                  ),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 45,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: Colors.grey,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Available Parkings',
+                        style:
+                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const Divider(),
+                      Expanded(
+                        child: ListView.builder(
+                          controller: scrollController,
+                          itemCount: _parkings.length,
+                          itemBuilder: (_, i) {
+                            final p = _parkings[i];
+                            return ListTile(
+                              title: Text(p.name),
+                              subtitle: Text(
+                                  '₹${p.pricePerHour}/hr • ${p.availableSlots} slots'),
+                              onTap: () => _showParkingSheet(p),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ],
       ),
-
-     body: Stack(
-  children: [
-    /* ================= MAP ================= */
-    FlutterMap(
-      mapController: _mapController,
-      options: MapOptions(
-        initialCenter: _mapCenter,
-        initialZoom: 14,
-      ),
-      children: [
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.smartparking.app',
-        ),
-
-        if (_routePoints.isNotEmpty)
-          PolylineLayer(
-            polylines: [
-              Polyline(
-                points: _routePoints,
-                strokeWidth: 5,
-                color: Colors.blue,
-              ),
-            ],
-          ),
-
-        MarkerLayer(
-          markers: [
-            if (_userPosition != null)
-              Marker(
-                point: LatLng(
-                  _userPosition!.latitude,
-                  _userPosition!.longitude,
-                ),
-                width: 20,
-                height: 20,
-                child: const Icon(
-                  Icons.my_location,
-                  color: Colors.blue,
-                ),
-              ),
-
-            ..._parkings.map(
-              (p) => Marker(
-                point: LatLng(
-                  p.location.latitude,
-                  p.location.longitude,
-                ),
-                width: 50,
-                height: 50,
-                child: GestureDetector(
-                  onTap: () => _showParkingSheet(p),
-                  child: Image.asset('assets/icons/parking_pin.png'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    ),
-
-    /* ================= SEARCH BAR ================= */
-    Positioned(
-      top: 20,
-      left: 16,
-      right: 16,
-      child: Material(
-        elevation: 6,
-        borderRadius: BorderRadius.circular(12),
-        child: TextField(
-          controller: _searchController,
-          onSubmitted: _searchLocation,
-          decoration: const InputDecoration(
-            hintText: 'Search location',
-            prefixIcon: Icon(Icons.search),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.all(14),
-          ),
-        ),
-      ),
-    ),
-
-    /* ================= BOTTOM DRAGGABLE PANEL ================= */
-   Align(
-  alignment: Alignment.bottomCenter,
-  child: DraggableScrollableSheet(
-    initialChildSize: 0.20,
-    minChildSize: 0.12,
-    maxChildSize: 0.70,
-    expand: false,
-    snap: true,
-    snapSizes: const [0.20, 0.45, 0.70],
-    builder: (context, scrollController) {
-      return Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          boxShadow: [
-            BoxShadow(blurRadius: 10, color: Colors.black26),
-          ],
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 8),
-
-            // ===== DRAG HANDLE (improved touch area) =====
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Container(
-                  width: 45,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[400],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-
-            const Text(
-              'Available Parkings',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const Divider(),
-
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,   // IMPORTANT
-                itemCount: _parkings.length,
-                itemBuilder: (_, i) {
-                  final p = _parkings[i];
-                  return ListTile(
-                    leading: const Icon(Icons.local_parking),
-                    title: Text(p.name),
-                    subtitle: Text(
-                        '₹${p.pricePerHour}/hr • ${p.availableSlots} slots'),
-                    onTap: () => _showParkingSheet(p),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      );
-    },
-  ),
-)
-
-  ],
-),
-
     );
   }
 }

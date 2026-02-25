@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'auth/login_screen.dart';
 import 'home/home_screen.dart';
+import 'admin/admin_dashboard_screen.dart';
+import 'owner/owner_dashboard_screen.dart';
+
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -23,13 +26,28 @@ class _SplashScreenState extends State<SplashScreen> {
     await authService.initialize();
 
     if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => authService.isAuthenticated
-              ? const HomeScreen()
-              : const LoginScreen(),
-        ),
-      );
+     if (authService.isAuthenticated) {
+  final role = authService.user?.role;
+
+  if (role == 'admin') {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+    );
+  } else if (role == 'owner') {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const OwnerDashboardScreen()),
+    );
+  } else {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+    );
+  }
+} else {
+  Navigator.of(context).pushReplacement(
+    MaterialPageRoute(builder: (_) => const LoginScreen()),
+  );
+}
+
     }
   }
 
