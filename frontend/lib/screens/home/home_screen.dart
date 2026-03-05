@@ -231,14 +231,52 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Smart Parking'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              auth.logout();
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-              );
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              switch (value) {
+                case 'history':
+                  // Navigate to Booking History
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const BookingHistoryScreen()),
+                  );
+                  break;
+                case 'logout':
+                  // Handle Logout logic
+                  final authService = Provider.of<AuthService>(context, listen: false);
+                  await authService.logout();
+                  if (mounted) {
+                    // Redirect to Login and remove all previous screens from stack
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  }
+                  break;
+              }
             },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'history',
+                child: Row(
+                  children: [
+                    Icon(Icons.history, color: Colors.black54),
+                    SizedBox(width: 10),
+                    Text('Booking History'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.redAccent),
+                    SizedBox(width: 10),
+                    Text('Logout', style: TextStyle(color: Colors.redAccent)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
