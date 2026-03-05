@@ -4,7 +4,7 @@ import '../../services/api_service.dart';
 import '../../models/parking.dart';
 import 'add_parking_screen.dart';
 import 'edit_parking_screen.dart';
-import '../parking/parking_details_screen.dart';
+import '../owner/owner_park.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';

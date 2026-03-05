@@ -13,7 +13,7 @@ import '../../services/auth_service.dart';
 import '../../services/api_service.dart';
 import '../../models/parking.dart';
 import '../auth/login_screen.dart';
-import '../parking/parking_details_screen.dart';
+import 'parking_details_screen.dart';
 import '../owner/owner_dashboard_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../bookings/booking_history_screen.dart';

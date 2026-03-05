@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../services/api_service.dart';
 import '../../models/parking.dart';
-import 'parking_details_screen.dart';
+import '../home/parking_details_screen.dart';
 
 class ParkingListScreen extends StatefulWidget {
   final String searchQuery;
