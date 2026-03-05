@@ -33,6 +33,20 @@ router.get('/', async (req, res) => {
 
     let parkings = await Parking.find(query).populate('owner', 'name email');
 
+    // Calculate real-time available slots for each parking (always fresh, ignore stored value)
+    const now = new Date();
+    parkings = await Promise.all(parkings.map(async (parking) => {
+      const overlappingBookings = await Booking.countDocuments({
+        parking: parking._id,
+        status: { $in: ['confirmed', 'active'] },
+        startTime: { $lte: now },
+        endTime: { $gt: now },
+      });
+      const parkingObj = parking.toObject();
+      parkingObj.availableSlots = Math.max(0, parkingObj.totalSlots - overlappingBookings);
+      return parkingObj;
+    }));
+
     // If location provided, calculate distance and filter by radius
     if (latitude && longitude) {
       const userLat = parseFloat(latitude);
@@ -47,7 +61,7 @@ router.get('/', async (req, res) => {
             parking.location.latitude,
             parking.location.longitude
           );
-          return { ...parking.toObject(), distance };
+          return { ...parking, distance };
         })
         .filter(parking => parking.distance <= radiusKm)
         .sort((a, b) => a.distance - b.distance);
@@ -237,7 +251,21 @@ router.put('/:id', authenticate, async (req, res) => {
  */
 router.get('/owner/my-parkings', authenticate, authorize('owner', 'admin'), async (req, res) => {
   try {
-    const parkings = await Parking.find({ owner: req.user._id });
+    let parkings = await Parking.find({ owner: req.user._id });
+
+    // Calculate real-time available slots for each parking (always fresh, ignore stored value)
+    const now = new Date();
+    parkings = await Promise.all(parkings.map(async (parking) => {
+      const overlappingBookings = await Booking.countDocuments({
+        parking: parking._id,
+        status: { $in: ['confirmed', 'active'] },
+        startTime: { $lte: now },
+        endTime: { $gt: now },
+      });
+      const parkingObj = parking.toObject();
+      parkingObj.availableSlots = Math.max(0, parkingObj.totalSlots - overlappingBookings);
+      return parkingObj;
+    }));
 
     res.json({
       success: true,

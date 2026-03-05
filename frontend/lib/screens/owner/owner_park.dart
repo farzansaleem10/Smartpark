@@ -385,8 +385,8 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                   slotNumber: slotNum,
                   customerName: customerNameController.text.trim(),
                   vehicleNumber: vehicleNumberController.text.trim(),
-                  startTime: selectedStartTime.toIso8601String(),
-                  endTime: selectedEndTime.toIso8601String(),
+                  startTime: selectedStartTime.toUtc().toIso8601String(),
+                  endTime: selectedEndTime.toUtc().toIso8601String(),
                 );
 
                 if (response['success']) {
@@ -409,7 +409,8 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
   }
 
   String _formatTimeIST(DateTime dateTime) {
-    // Format datetime in IST (UTC+5:30)
+    // Format datetime in IST - just display the local time as-is
+    // because DateTime.now() is already in the device's local timezone (IST)
     return DateFormat('dd MMM, yyyy • hh:mm a').format(dateTime);
   }
 
@@ -670,7 +671,10 @@ class _BookedSlotRow extends StatelessWidget {
   String _format(String time) {
     try {
       final dt = DateTime.parse(time);
-      return DateFormat('MMM dd • hh:mm a').format(dt);
+      // Convert to IST by adding 5:30 hours if the time is in UTC
+      // If the datetime already has timezone info, parse will handle it
+      final istDateTime = dt.add(const Duration(hours: 5, minutes: 30));
+      return DateFormat('MMM dd • hh:mm a').format(istDateTime);
     } catch (_) {
       return time;
     }

@@ -40,6 +40,13 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh data when screen comes into focus
+    _loadData();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
