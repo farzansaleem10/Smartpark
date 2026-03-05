@@ -14,20 +14,16 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('token');
   }
-
-  // Set auth token in storage
-  static Future<void> _setToken(String token) async {
+ static Future<void> _setToken(String token) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('token', token);
   }
 
-  // Remove auth token from storage
   static Future<void> _removeToken() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
   }
 
-  // Get headers with auth token
   static Future<Map<String, String>> _getHeaders({bool includeAuth = true}) async {
     final headers = {
       'Content-Type': 'application/json',
@@ -43,7 +39,6 @@ class ApiService {
     return headers;
   }
 
-  // Handle API response
   static Map<String, dynamic> _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return json.decode(response.body);
@@ -53,7 +48,8 @@ class ApiService {
     }
   }
 
-  // AUTH ENDPOINTS
+  // ================= AUTH =================
+
   static Future<Map<String, dynamic>> register({
     required String name,
     required String email,
@@ -61,6 +57,7 @@ class ApiService {
     String? phone,
     String? role,
   }) async {
+
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
       headers: await _getHeaders(includeAuth: false),
@@ -74,9 +71,11 @@ class ApiService {
     );
 
     final data = _handleResponse(response);
+
     if (data['success'] && data['data']?['token'] != null) {
       await _setToken(data['data']['token']);
     }
+
     return data;
   }
 
@@ -85,11 +84,11 @@ class ApiService {
     String? username,
     required String password,
   }) async {
+
     final Map<String, dynamic> body = {
       'password': password,
     };
 
-    // Check if username or email is provided
     if (username != null && username.isNotEmpty) {
       body['username'] = username;
     } else if (email != null && email.isNotEmpty) {
@@ -105,9 +104,11 @@ class ApiService {
     );
 
     final data = _handleResponse(response);
+
     if (data['success'] && data['data']?['token'] != null) {
       await _setToken(data['data']['token']);
     }
+
     return data;
   }
 
@@ -124,7 +125,8 @@ class ApiService {
     await _removeToken();
   }
 
-  // PARKING ENDPOINTS
+  // ================= PARKINGS =================
+
   static Future<Map<String, dynamic>> getParkings({
     double? latitude,
     double? longitude,
@@ -132,14 +134,18 @@ class ApiService {
     String? city,
     String? search,
   }) async {
+
     final queryParams = <String, String>{};
+
     if (latitude != null) queryParams['latitude'] = latitude.toString();
     if (longitude != null) queryParams['longitude'] = longitude.toString();
     if (radius != null) queryParams['radius'] = radius.toString();
     if (city != null) queryParams['city'] = city;
     if (search != null) queryParams['search'] = search;
 
-    final uri = Uri.parse('$baseUrl/parking').replace(queryParameters: queryParams);
+    final uri = Uri.parse('$baseUrl/parking')
+        .replace(queryParameters: queryParams);
+
     final response = await http.get(
       uri,
       headers: await _getHeaders(includeAuth: false),
@@ -149,6 +155,7 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> getParking(String id) async {
+
     final response = await http.get(
       Uri.parse('$baseUrl/parking/$id'),
       headers: await _getHeaders(includeAuth: false),
@@ -157,74 +164,25 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  static Future<Map<String, dynamic>> createParking(Map<String, dynamic> data) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/parking'),
-      headers: await _getHeaders(),
-      body: json.encode(data),
-    );
+  static Future<Map<String, dynamic>> getParkingDetails(String parkingId) async {
 
-    return _handleResponse(response);
-  }
-
-  static Future<Map<String, dynamic>> updateParking(
-    String id,
-    Map<String, dynamic> data,
-  ) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/parking/$id'),
-      headers: await _getHeaders(),
-      body: json.encode(data),
-    );
-
-    return _handleResponse(response);
-  }
-
-  static Future<Map<String, dynamic>> getMyParkings() async {
     final response = await http.get(
-      Uri.parse('$baseUrl/parking/owner/my-parkings'),
+      Uri.parse('$baseUrl/parking/$parkingId/details'),
       headers: await _getHeaders(),
     );
 
     return _handleResponse(response);
   }
 
-  static Future<Map<String, dynamic>> checkAvailability({
-    required String parkingId,
-    required DateTime startTime,
-    required DateTime endTime,
-  }) async {
-    final queryParams = {
-      'startTime': startTime.toIso8601String(),
-      'endTime': endTime.toIso8601String(),
-    };
+  // ================= BOOKINGS =================
 
-    final uri = Uri.parse('$baseUrl/parking/$parkingId/availability')
-        .replace(queryParameters: queryParams);
-    final response = await http.get(
-      uri,
-      headers: await _getHeaders(includeAuth: false),
-    );
-
-    return _handleResponse(response);
-  }
-
-  static Future<Map<String, dynamic>> verifyParking(String parkingId) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/parking/$parkingId/verify'),
-      headers: await _getHeaders(),
-    );
-
-    return _handleResponse(response);
-  }
-
-  // BOOKING ENDPOINTS
   static Future<Map<String, dynamic>> createBooking({
     required String parkingId,
     required DateTime startTime,
     required DateTime endTime,
     String? paymentMethod,
   }) async {
+
     final response = await http.post(
       Uri.parse('$baseUrl/bookings'),
       headers: await _getHeaders(),
@@ -240,6 +198,7 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> getBookings() async {
+
     final response = await http.get(
       Uri.parse('$baseUrl/bookings'),
       headers: await _getHeaders(),
@@ -248,88 +207,99 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  static Future<Map<String, dynamic>> getBooking(String id) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/bookings/$id'),
-      headers: await _getHeaders(),
-    );
+  static Future<Map<String, dynamic>> getOwnerBookings(String parkingId) async {
 
-    return _handleResponse(response);
+    try {
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/bookings/owner?parkingId=$parkingId'),
+        headers: await _getHeaders(),
+      );
+
+      return _handleResponse(response);
+
+    } catch (e) {
+
+      return {
+        'success': false,
+        'message': e.toString().replaceAll('Exception: ', ''),
+      };
+    }
   }
 
-  static Future<Map<String, dynamic>> checkIn(String bookingId) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/bookings/$bookingId/checkin'),
-      headers: await _getHeaders(),
-    );
+  // ================= MANUAL BOOKING =================
 
-    return _handleResponse(response);
-  }
-
-  static Future<Map<String, dynamic>> checkOut(String bookingId) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/bookings/$bookingId/checkout'),
-      headers: await _getHeaders(),
-    );
-
-    return _handleResponse(response);
-  }
-
-  static Future<Map<String, dynamic>> cancelBooking(String bookingId) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/bookings/$bookingId/cancel'),
-      headers: await _getHeaders(),
-    );
-
-    return _handleResponse(response);
-  }
-
-  // REVIEW ENDPOINTS
-  static Future<Map<String, dynamic>> createReview({
+  static Future<Map<String, dynamic>> createManualBooking({
     required String parkingId,
-    required String bookingId,
-    required int rating,
-    String? comment,
+    required int slotNumber,
+    required String customerName,
+    required String vehicleNumber,
+    required String startTime,
+    required String endTime,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/reviews'),
-      headers: await _getHeaders(),
-      body: json.encode({
-        'parking': parkingId,
-        'booking': bookingId,
-        'rating': rating,
-        'comment': comment,
-      }),
-    );
 
-    return _handleResponse(response);
+    try {
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/bookings/manual'),
+        headers: await _getHeaders(),
+        body: json.encode({
+          'parkingId': parkingId,
+          'slotNumber': slotNumber,
+          'customerName': customerName,
+          'vehicleNumber': vehicleNumber,
+          'startTime': startTime,
+          'endTime': endTime,
+        }),
+      );
+
+      if (response.statusCode == 404) {
+
+        final bookingResponse = await createBooking(
+          parkingId: parkingId,
+          startTime: DateTime.parse(startTime),
+          endTime: DateTime.parse(endTime),
+          paymentMethod: 'cash',
+        );
+
+        return bookingResponse;
+      }
+
+      return _handleResponse(response);
+
+    } catch (e) {
+
+      try {
+
+        final bookingResponse = await createBooking(
+          parkingId: parkingId,
+          startTime: DateTime.parse(startTime),
+          endTime: DateTime.parse(endTime),
+          paymentMethod: 'cash',
+        );
+
+        return bookingResponse;
+
+      } catch (bookingError) {
+
+        return {
+          'success': false,
+          'message': e.toString().replaceAll('Exception: ', ''),
+        };
+      }
+    }
   }
 
-  static Future<Map<String, dynamic>> getParkingReviews(String parkingId) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/reviews/parking/$parkingId'),
-      headers: await _getHeaders(includeAuth: false),
-    );
+  // ================= MISSING FUNCTIONS ADDED =================
 
-    return _handleResponse(response);
-  }
-
-  static Future<Map<String, dynamic>> getMyReviews() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/reviews'),
-      headers: await _getHeaders(),
-    );
-
-    return _handleResponse(response);
-  }
-
-  // ADMIN ENDPOINTS
   static Future<Map<String, dynamic>> getParkingRequests({String? status}) async {
+
     final queryParams = <String, String>{};
     if (status != null) queryParams['status'] = status;
 
     final uri = Uri.parse('$baseUrl/admin/parking-requests')
         .replace(queryParameters: queryParams);
+
     final response = await http.get(
       uri,
       headers: await _getHeaders(),
@@ -338,38 +308,8 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  static Future<Map<String, dynamic>> getParkingRequest(String id) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/admin/parking-requests/$id'),
-      headers: await _getHeaders(),
-    );
-
-    return _handleResponse(response);
-  }
-
-  static Future<Map<String, dynamic>> approveParkingRequest(String id) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/admin/parking-requests/$id/approve'),
-      headers: await _getHeaders(),
-    );
-
-    return _handleResponse(response);
-  }
-
-  static Future<Map<String, dynamic>> rejectParkingRequest(
-    String id, {
-    String? reason,
-  }) async {
-    final response = await http.put(
-      Uri.parse('$baseUrl/admin/parking-requests/$id/reject'),
-      headers: await _getHeaders(),
-      body: json.encode({'reason': reason}),
-    );
-
-    return _handleResponse(response);
-  }
-
   static Future<Map<String, dynamic>> getAdminAnalytics() async {
+
     final response = await http.get(
       Uri.parse('$baseUrl/admin/analytics'),
       headers: await _getHeaders(),
@@ -379,6 +319,7 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> getAllUsers() async {
+
     final response = await http.get(
       Uri.parse('$baseUrl/admin/users'),
       headers: await _getHeaders(),
@@ -387,17 +328,31 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  static Future<Map<String, dynamic>> getUserBookings(String userId) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/admin/users/$userId/bookings'),
+  static Future<Map<String, dynamic>> approveParkingRequest(String id) async {
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/admin/parking-requests/$id/approve'),
       headers: await _getHeaders(),
     );
 
     return _handleResponse(response);
   }
 
-  // OWNER ENDPOINTS
+  static Future<Map<String, dynamic>> rejectParkingRequest(
+      String id,
+      {String? reason}) async {
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/admin/parking-requests/$id/reject'),
+      headers: await _getHeaders(),
+      body: json.encode({'reason': reason}),
+    );
+
+    return _handleResponse(response);
+  }
+
   static Future<Map<String, dynamic>> getOwnerParkings() async {
+
     final response = await http.get(
       Uri.parse('$baseUrl/owner/parkings'),
       headers: await _getHeaders(),
@@ -406,162 +361,101 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  static Future<Map<String, dynamic>> getParkingDetails(String parkingId) async {
+  static Future<Map<String, dynamic>> getMyParkings() async {
+
     final response = await http.get(
-      Uri.parse('$baseUrl/parking/$parkingId/details'),
+      Uri.parse('$baseUrl/parking/owner/my-parkings'),
       headers: await _getHeaders(),
     );
 
     return _handleResponse(response);
   }
 
-  static Future<Map<String, dynamic>> createManualBooking({
-    required String parkingId,
-    required int slotNumber,
-    required String customerName,
-    required String vehicleNumber,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/manual-booking'),
-        headers: await _getHeaders(),
-        body: json.encode({
-          'parkingId': parkingId,
-          'slotNumber': slotNumber,
-          'customerName': customerName,
-          'vehicleNumber': vehicleNumber,
-        }),
-      );
-
-      if (response.statusCode == 404) {
-        // Endpoint not found - fallback to regular booking endpoint
-        // Use current time as start time and 1 hour later as end time
-        final now = DateTime.now();
-        final endTime = now.add(const Duration(hours: 1));
-        
-        try {
-          final bookingResponse = await createBooking(
-            parkingId: parkingId,
-            startTime: now,
-            endTime: endTime,
-            paymentMethod: 'cash',
-          );
-          
-          // If booking succeeds, return success with note about using regular flow
-          if (bookingResponse['success'] == true) {
-            return {
-              'success': true,
-              'message': 'Slot booked successfully using regular booking flow',
-              'data': bookingResponse['data'],
-            };
-          } else {
-            return bookingResponse;
-          }
-        } catch (bookingError) {
-          return {
-            'success': false,
-            'message': 'Manual booking not available. Regular booking also failed: ${bookingError.toString().replaceAll('Exception: ', '')}',
-          };
-        }
-      }
-
-      return _handleResponse(response);
-    } catch (e) {
-      // Try fallback to regular booking
-      try {
-        final now = DateTime.now();
-        final endTime = now.add(const Duration(hours: 1));
-        
-        final bookingResponse = await createBooking(
-          parkingId: parkingId,
-          startTime: now,
-          endTime: endTime,
-          paymentMethod: 'cash',
-        );
-        
-        if (bookingResponse['success'] == true) {
-          return {
-            'success': true,
-            'message': 'Slot booked successfully using regular booking flow',
-            'data': bookingResponse['data'],
-          };
-        } else {
-          return bookingResponse;
-        }
-      } catch (bookingError) {
-        return {
-          'success': false,
-          'message': e.toString().replaceAll('Exception: ', ''),
-        };
-      }
-    }
-  }
-
   static Future<Map<String, dynamic>> getOwnerEarnings() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/owner/earnings'),
-        headers: await _getHeaders(),
-      );
 
-      if (response.statusCode == 404) {
-        // Endpoint not found - return empty data
-        return {
-          'success': true,
-          'data': {
-            'today': 0,
-            'monthly': 0,
-            'yearly': 0,
-            'dailyEarnings': [],
-          },
-        };
-      }
+    final response = await http.get(
+      Uri.parse('$baseUrl/owner/earnings'),
+      headers: await _getHeaders(),
+    );
 
-      return _handleResponse(response);
-    } catch (e) {
-      // Return empty data on error
-      return {
-        'success': true,
-        'data': {
-          'today': 0,
-          'monthly': 0,
-          'yearly': 0,
-          'dailyEarnings': [],
-        },
-      };
-    }
+    return _handleResponse(response);
   }
 
   static Future<Map<String, dynamic>> getOwnerAnalytics() async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/owner/analytics'),
-        headers: await _getHeaders(),
-      );
 
-      if (response.statusCode == 404) {
-        // Endpoint not found - return empty data
-        return {
-          'success': true,
-          'data': {
-            'activeUsers': 0,
-            'bookingsPerDay': [],
-            'peakHours': [],
-          },
-        };
-      }
+    final response = await http.get(
+      Uri.parse('$baseUrl/owner/analytics'),
+      headers: await _getHeaders(),
+    );
 
-      return _handleResponse(response);
-    } catch (e) {
-      // Return empty data on error
-      return {
-        'success': true,
-        'data': {
-          'activeUsers': 0,
-          'bookingsPerDay': [],
-          'peakHours': [],
-        },
-      };
-    }
+    return _handleResponse(response);
   }
+
+  static Future<Map<String, dynamic>> createParking(
+      Map<String, dynamic> data) async {
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/parking'),
+      headers: await _getHeaders(),
+      body: json.encode(data),
+    );
+
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> updateParking(
+      String id,
+      Map<String, dynamic> data) async {
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/parking/$id'),
+      headers: await _getHeaders(),
+      body: json.encode(data),
+    );
+
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> checkAvailability({
+    required String parkingId,
+    required DateTime startTime,
+    required DateTime endTime,
+  }) async {
+
+    final queryParams = {
+      'startTime': startTime.toIso8601String(),
+      'endTime': endTime.toIso8601String(),
+    };
+
+    final uri = Uri.parse('$baseUrl/parking/$parkingId/availability')
+        .replace(queryParameters: queryParams);
+
+    final response = await http.get(
+      uri,
+      headers: await _getHeaders(includeAuth: false),
+    );
+
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> getBooking(String id) async {
+
+    final response = await http.get(
+      Uri.parse('$baseUrl/bookings/$id'),
+      headers: await _getHeaders(),
+    );
+
+    return _handleResponse(response);
+  }
+
+  static Future<Map<String, dynamic>> deleteBooking(String bookingId) async {
+
+    final response = await http.delete(
+      Uri.parse('$baseUrl/bookings/$bookingId'),
+      headers: await _getHeaders(),
+    );
+
+    return _handleResponse(response);
+  }
+
 }

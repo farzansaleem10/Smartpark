@@ -11,6 +11,127 @@ const router = express.Router();
 router.use(authenticate);
 
 /**
+ * @route   POST /api/bookings/manual
+ * @desc    Create a manual booking by owner
+ * @access  Private/Owner
+ */
+router.post('/manual', authenticate, async (req, res) => {
+  try {
+    const { parkingId, slotNumber, customerName, vehicleNumber, startTime, endTime } = req.body;
+
+    const parking = await Parking.findById(parkingId);
+    if (!parking) {
+      return res.status(404).json({ success: false, message: 'Parking not found' });
+    }
+
+    if (parking.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const duration = (end - start) / (1000 * 60 * 60);
+
+    const booking = await Booking.create({
+      user: req.user._id, // Owner is technically creating this
+      parking: parkingId,
+      slotNumber,
+      customerName,
+      vehicleNumber,
+      startTime: start,
+      endTime: end,
+      duration,
+      totalPrice: duration * parking.pricePerHour,
+      isManual: true,
+      status: 'active',
+      paymentMethod: 'cash',
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Manual booking created successfully',
+      data: { booking },
+    });
+  } catch (error) {
+    console.error('Manual booking error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+/**
+ * @route   GET /api/bookings/owner
+ * @desc    Get all bookings for a specific parking (last 24h & active)
+ * @access  Private/Owner
+ */
+router.get('/owner', authenticate, async (req, res) => {
+  try {
+    const { parkingId } = req.query;
+
+    if (!parkingId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Parking ID is required',
+      });
+    }
+
+    const parking = await Parking.findById(parkingId);
+
+    if (!parking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Parking not found',
+      });
+    }
+
+    if (parking.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to view bookings for this parking',
+      });
+    }
+
+    // Get bookings from last 24 hours
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    // Auto-complete expired bookings before fetching
+    await Booking.updateMany(
+      {
+        parking: parkingId,
+        status: { $in: ['confirmed', 'active'] },
+        endTime: { $lt: new Date() }
+      },
+      { $set: { status: 'completed' } }
+    );
+
+    const bookings = await Booking.find({
+      parking: parkingId,
+      createdAt: { $gte: oneDayAgo }
+    })
+      .populate('user', 'name email')
+      .sort({ createdAt: -1 });
+
+    // Format the response to match what the frontend expects
+    const formattedBookings = bookings.map(b => ({
+      ...b.toObject(),
+      // Use customerName if available (manual booking), fallback to user.name
+      customerName: b.customerName || (b.user ? b.user.name : 'Unknown'),
+    }));
+
+    res.json({
+      success: true,
+      count: formattedBookings.length,
+      data: { bookings: formattedBookings },
+    });
+  } catch (error) {
+    console.error('Get owner bookings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+});
+
+/**
  * @route   POST /api/bookings
  * @desc    Create a new booking
  * @access  Private
@@ -29,9 +150,9 @@ router.post('/', [
         errors: errors.array(),
       });
     }
-    
+
     const { parking: parkingId, startTime, endTime, paymentMethod } = req.body;
-    
+
     // Get parking details
     const parking = await Parking.findById(parkingId);
     if (!parking) {
@@ -40,24 +161,24 @@ router.post('/', [
         message: 'Parking space not found',
       });
     }
-    
+
     if (!parking.isVerified) {
       return res.status(400).json({
         success: false,
         message: 'Parking space is not verified yet',
       });
     }
-    
+
     const start = new Date(startTime);
     const end = new Date(endTime);
-    
+
     if (end <= start) {
       return res.status(400).json({
         success: false,
         message: 'End time must be after start time',
       });
     }
-    
+
     // Check for overlapping bookings
     const overlappingBookings = await Booking.find({
       parking: parkingId,
@@ -69,32 +190,32 @@ router.post('/', [
         },
       ],
     });
-    
+
     if (overlappingBookings.length >= parking.totalSlots) {
       return res.status(400).json({
         success: false,
         message: 'No available slots for the selected time',
       });
     }
-    
+
     // Calculate duration and price
     const duration = (end - start) / (1000 * 60 * 60); // in hours
     const totalPrice = duration * parking.pricePerHour;
-    
+
     // Assign slot number (simple logic - can be improved)
     const bookedSlots = overlappingBookings.map(b => b.slotNumber);
     let slotNumber = 1;
     while (bookedSlots.includes(slotNumber) && slotNumber <= parking.totalSlots) {
       slotNumber++;
     }
-    
+
     if (slotNumber > parking.totalSlots) {
       return res.status(400).json({
         success: false,
         message: 'No available slots',
       });
     }
-    
+
     // Generate QR code data
     const qrData = JSON.stringify({
       bookingId: `temp_${Date.now()}`,
@@ -103,7 +224,7 @@ router.post('/', [
       startTime: start.toISOString(),
       endTime: end.toISOString(),
     });
-    
+
     // Create booking
     const booking = await Booking.create({
       user: req.user._id,
@@ -116,7 +237,7 @@ router.post('/', [
       paymentMethod: paymentMethod || 'cash',
       status: 'confirmed',
     });
-    
+
     // Generate QR code
     const qrCode = await QRCode.toDataURL(JSON.stringify({
       bookingId: booking._id.toString(),
@@ -125,18 +246,18 @@ router.post('/', [
       startTime: start.toISOString(),
       endTime: end.toISOString(),
     }));
-    
+
     booking.qrCode = qrCode;
     await booking.save();
-    
+
     // Update parking available slots
     parking.availableSlots = Math.max(0, parking.availableSlots - 1);
     await parking.save();
-    
+
     // Populate booking details
     await booking.populate('parking', 'name address location');
     await booking.populate('user', 'name email');
-    
+
     res.status(201).json({
       success: true,
       message: 'Booking created successfully',
@@ -161,7 +282,7 @@ router.get('/', async (req, res) => {
     const bookings = await Booking.find({ user: req.user._id })
       .populate('parking', 'name address location pricePerHour')
       .sort({ createdAt: -1 });
-    
+
     res.json({
       success: true,
       count: bookings.length,
@@ -185,14 +306,14 @@ router.get('/:id', async (req, res) => {
     const booking = await Booking.findById(req.params.id)
       .populate('parking', 'name address location pricePerHour')
       .populate('user', 'name email');
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Booking not found',
       });
     }
-    
+
     // Check if user owns this booking or is admin
     if (booking.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
@@ -200,7 +321,7 @@ router.get('/:id', async (req, res) => {
         message: 'Not authorized',
       });
     }
-    
+
     res.json({
       success: true,
       data: { booking },
@@ -221,32 +342,32 @@ router.get('/:id', async (req, res) => {
 router.put('/:id/checkin', async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Booking not found',
       });
     }
-    
+
     if (booking.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized',
       });
     }
-    
+
     if (booking.status !== 'confirmed') {
       return res.status(400).json({
         success: false,
         message: 'Booking is not in confirmed status',
       });
     }
-    
+
     booking.status = 'active';
     booking.checkInTime = new Date();
     await booking.save();
-    
+
     res.json({
       success: true,
       message: 'Checked in successfully',
@@ -268,40 +389,40 @@ router.put('/:id/checkin', async (req, res) => {
 router.put('/:id/checkout', async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Booking not found',
       });
     }
-    
+
     if (booking.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized',
       });
     }
-    
+
     if (booking.status !== 'active') {
       return res.status(400).json({
         success: false,
         message: 'Booking is not active',
       });
     }
-    
+
     booking.status = 'completed';
     booking.checkOutTime = new Date();
     booking.paymentStatus = 'paid';
     await booking.save();
-    
+
     // Update parking available slots
     const parking = await Parking.findById(booking.parking);
     if (parking) {
       parking.availableSlots = Math.min(parking.totalSlots, parking.availableSlots + 1);
       await parking.save();
     }
-    
+
     res.json({
       success: true,
       message: 'Checked out successfully',
@@ -323,38 +444,38 @@ router.put('/:id/checkout', async (req, res) => {
 router.put('/:id/cancel', async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-    
+
     if (!booking) {
       return res.status(404).json({
         success: false,
         message: 'Booking not found',
       });
     }
-    
+
     if (booking.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
         success: false,
         message: 'Not authorized',
       });
     }
-    
+
     if (['completed', 'cancelled'].includes(booking.status)) {
       return res.status(400).json({
         success: false,
         message: 'Cannot cancel this booking',
       });
     }
-    
+
     booking.status = 'cancelled';
     await booking.save();
-    
+
     // Update parking available slots
     const parking = await Parking.findById(booking.parking);
     if (parking) {
       parking.availableSlots = Math.min(parking.totalSlots, parking.availableSlots + 1);
       await parking.save();
     }
-    
+
     res.json({
       success: true,
       message: 'Booking cancelled successfully',

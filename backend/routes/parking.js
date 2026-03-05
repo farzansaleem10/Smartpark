@@ -14,14 +14,14 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     const { latitude, longitude, radius = 5000, city, search } = req.query;
-    
+
     let query = { isActive: true };
-    
+
     // Add city filter if provided
     if (city) {
       query['address.city'] = new RegExp(city, 'i');
     }
-    
+
     // Add search filter if provided
     if (search) {
       query.$or = [
@@ -30,15 +30,15 @@ router.get('/', async (req, res) => {
         { 'address.street': new RegExp(search, 'i') },
       ];
     }
-    
+
     let parkings = await Parking.find(query).populate('owner', 'name email');
-    
+
     // If location provided, calculate distance and filter by radius
     if (latitude && longitude) {
       const userLat = parseFloat(latitude);
       const userLng = parseFloat(longitude);
       const radiusKm = parseFloat(radius) / 1000; // Convert to km
-      
+
       parkings = parkings
         .map(parking => {
           const distance = calculateDistance(
@@ -52,7 +52,7 @@ router.get('/', async (req, res) => {
         .filter(parking => parking.distance <= radiusKm)
         .sort((a, b) => a.distance - b.distance);
     }
-    
+
     res.json({
       success: true,
       count: parkings.length,
@@ -75,17 +75,60 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const parking = await Parking.findById(req.params.id).populate('owner', 'name email phone');
-    
+
     if (!parking) {
       return res.status(404).json({
         success: false,
         message: 'Parking space not found',
       });
     }
-    
+
     res.json({
       success: true,
       data: { parking },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+});
+
+/**
+ * @route   GET /api/parking/:id/details
+ * @desc    Get additional parking details
+ * @access  Public
+ */
+router.get('/:id/details', async (req, res) => {
+  try {
+    const parking = await Parking.findById(req.params.id);
+
+    if (!parking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Parking space not found',
+      });
+    }
+
+    // Get real-time available slots based on active bookings
+    const now = new Date();
+    const overlappingBookings = await Booking.find({
+      parking: req.params.id,
+      status: { $in: ['confirmed', 'active'] },
+      startTime: { $lte: now },
+      endTime: { $gt: now },
+    });
+
+    const bookedSlots = overlappingBookings.length;
+    const availableSlots = parking.totalSlots - bookedSlots;
+
+    res.json({
+      success: true,
+      data: {
+        totalSlots: parking.totalSlots,
+        availableSlots: Math.max(0, availableSlots),
+      },
     });
   } catch (error) {
     res.status(500).json({
@@ -118,15 +161,15 @@ router.post('/', authenticate, authorize('owner', 'admin'), [
         errors: errors.array(),
       });
     }
-    
+
     const parkingData = {
       ...req.body,
       owner: req.user._id,
       availableSlots: req.body.totalSlots,
     };
-    
+
     const parking = await Parking.create(parkingData);
-    
+
     res.status(201).json({
       success: true,
       message: 'Parking space created successfully',
@@ -149,14 +192,14 @@ router.post('/', authenticate, authorize('owner', 'admin'), [
 router.put('/:id', authenticate, async (req, res) => {
   try {
     const parking = await Parking.findById(req.params.id);
-    
+
     if (!parking) {
       return res.status(404).json({
         success: false,
         message: 'Parking space not found',
       });
     }
-    
+
     // Check if user is owner or admin
     if (parking.owner.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
       return res.status(403).json({
@@ -164,16 +207,16 @@ router.put('/:id', authenticate, async (req, res) => {
         message: 'Not authorized to update this parking',
       });
     }
-    
+
     // Don't allow updating owner
     delete req.body.owner;
-    
+
     const updatedParking = await Parking.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, runValidators: true }
     );
-    
+
     res.json({
       success: true,
       message: 'Parking space updated successfully',
@@ -195,7 +238,7 @@ router.put('/:id', authenticate, async (req, res) => {
 router.get('/owner/my-parkings', authenticate, authorize('owner', 'admin'), async (req, res) => {
   try {
     const parkings = await Parking.find({ owner: req.user._id });
-    
+
     res.json({
       success: true,
       count: parkings.length,
@@ -221,14 +264,14 @@ router.put('/:id/verify', authenticate, authorize('admin'), async (req, res) => 
       { isVerified: true },
       { new: true }
     );
-    
+
     if (!parking) {
       return res.status(404).json({
         success: false,
         message: 'Parking space not found',
       });
     }
-    
+
     res.json({
       success: true,
       message: 'Parking space verified successfully',
@@ -250,14 +293,14 @@ router.put('/:id/verify', authenticate, authorize('admin'), async (req, res) => 
 router.get('/:id/availability', async (req, res) => {
   try {
     const { startTime, endTime } = req.query;
-    
+
     if (!startTime || !endTime) {
       return res.status(400).json({
         success: false,
         message: 'Start time and end time are required',
       });
     }
-    
+
     const parking = await Parking.findById(req.params.id);
     if (!parking) {
       return res.status(404).json({
@@ -265,7 +308,7 @@ router.get('/:id/availability', async (req, res) => {
         message: 'Parking space not found',
       });
     }
-    
+
     // Find overlapping bookings
     const overlappingBookings = await Booking.find({
       parking: req.params.id,
@@ -277,10 +320,10 @@ router.get('/:id/availability', async (req, res) => {
         },
       ],
     });
-    
+
     const bookedSlots = overlappingBookings.length;
     const availableSlots = parking.totalSlots - bookedSlots;
-    
+
     res.json({
       success: true,
       data: {

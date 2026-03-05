@@ -15,6 +15,16 @@ const bookingSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  customerName: {
+    type: String,
+  },
+  vehicleNumber: {
+    type: String,
+  },
+  isManual: {
+    type: Boolean,
+    default: false,
+  },
   startTime: {
     type: Date,
     required: true,

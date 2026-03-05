@@ -4,7 +4,7 @@ import '../../services/api_service.dart';
 import '../../models/parking.dart';
 import 'add_parking_screen.dart';
 import 'edit_parking_screen.dart';
-import '../owner/owner_park.dart';
+import 'owner_park.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
@@ -162,13 +162,16 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                   );
                                   return;
                                 }
-                                Navigator.of(context).push(
+                              Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (_) => ParkingDetailsScreen(
                                       parkingId: parking.id,
                                     ),
                                   ),
-                                );
+                                ).then((_) {
+                                  // Refresh data when returning from details screen
+                                  _loadData();
+                                });
                               },
                             ),
                           )),

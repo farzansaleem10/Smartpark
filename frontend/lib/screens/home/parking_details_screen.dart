@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../models/parking.dart';
 import '../bookings/booking_screen.dart';
@@ -19,10 +20,20 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
   Parking? _parking;
   bool _isLoading = true;
   String? _error;
+  late DateTime _currentTime;
 
   @override
   void initState() {
     super.initState();
+    _currentTime = DateTime.now();
+    // Update current time every minute
+    Future.delayed(const Duration(minutes: 1), () {
+      if (mounted) {
+        setState(() {
+          _currentTime = DateTime.now();
+        });
+      }
+    });
     _loadParking();
   }
 
@@ -157,6 +168,71 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                                   Icons.attach_money,
                                   '₹${_parking!.pricePerHour.toStringAsFixed(0)} per hour',
                                 ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.schedule,
+                                      size: 20,
+                                      color: Colors.grey[600],
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Open: ${_parking!.operatingHours.open} - ${_parking!.operatingHours.close}',
+                                        style: TextStyle(color: Colors.grey[700]),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Card(
+                                  color: _isParkingOpen()
+                                      ? Colors.green[50]
+                                      : Colors.red[50],
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              _isParkingOpen()
+                                                  ? Icons.check_circle
+                                                  : Icons.cancel,
+                                              color: _isParkingOpen()
+                                                  ? Colors.green
+                                                  : Colors.red,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              _isParkingOpen()
+                                                  ? 'CURRENTLY OPEN'
+                                                  : 'CURRENTLY CLOSED',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: _isParkingOpen()
+                                                    ? Colors.green
+                                                    : Colors.red,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Current Time (IST): ${_getCurrentTimeIST()}',
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
                                 if (_parking!.rating.average > 0) ...[
                                   const SizedBox(height: 8),
                                   Row(
@@ -242,5 +318,31 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
         ),
       ],
     );
+  }
+
+  String _formatTimeIST(DateTime dateTime) {
+    // Format time in IST (UTC+5:30)
+    return DateFormat('hh:mm a').format(dateTime);
+  }
+
+  String _getCurrentTimeIST() {
+    // Return current time in IST format
+    return DateFormat('dd MMM, yyyy • hh:mm a').format(_currentTime);
+  }
+
+  bool _isParkingOpen() {
+    try {
+      final now = _currentTime;
+      final currentTimeStr =
+          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+      final openTime = _parking!.operatingHours.open;
+      final closeTime = _parking!.operatingHours.close;
+
+      // Simple time comparison (assumes times are in HH:mm format)
+      return currentTimeStr.compareTo(openTime) >= 0 &&
+          currentTimeStr.compareTo(closeTime) < 0;
+    } catch (_) {
+      return true;
+    }
   }
 }
