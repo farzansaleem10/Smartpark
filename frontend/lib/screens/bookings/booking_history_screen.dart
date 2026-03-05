@@ -11,7 +11,8 @@ class BookingHistoryScreen extends StatefulWidget {
   State<BookingHistoryScreen> createState() => _BookingHistoryScreenState();
 }
 
-class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
+class _BookingHistoryScreenState extends State<BookingHistoryScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   List<Booking> _bookings = [];
   bool _isLoading = true;
   String? _error;
@@ -19,7 +20,14 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadBookings();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadBookings() async {
@@ -36,6 +44,8 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
           _bookings = (response['data']['bookings'] as List)
               .map((b) => Booking.fromJson(b))
               .toList();
+          // Sort bookings: Newest first
+          _bookings.sort((a, b) => b.startTime.compareTo(a.startTime));
           _isLoading = false;
         });
       } else {
@@ -54,208 +64,176 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'confirmed':
-        return Colors.blue;
-      case 'active':
-        return Colors.green;
-      case 'completed':
-        return Colors.grey;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return Colors.orange;
+      case 'confirmed': return Colors.blue;
+      case 'active': return Colors.green;
+      case 'completed': return Colors.grey;
+      case 'cancelled': return Colors.red;
+      default: return Colors.orange;
     }
   }
 
+ Widget _buildBookingList(List<Booking> bookings) {
+    if (bookings.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history, size: 64, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            Text('No bookings found', style: TextStyle(color: Colors.grey[600])),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadBookings,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: bookings.length,
+        itemBuilder: (context, index) {
+          final booking = bookings[index];
+
+          // --- UPDATE START ---
+          // 1. Manually add 5:30 to convert UTC from server to IST
+          final displayStart = booking.startTime.add(const Duration(hours: 5, minutes: 30));
+          final displayEnd = booking.endTime.add(const Duration(hours: 5, minutes: 30));
+          // --- UPDATE END ---
+
+          final isPast = booking.status.toLowerCase() == 'completed' || 
+                         booking.status.toLowerCase() == 'cancelled';
+
+          return Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.only(bottom: 16),
+            child: InkWell(
+              onTap: () {
+                if (booking.qrCode != null) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => QRCodeScreen(booking: booking)),
+                  );
+                }
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            booking.parking?.name ?? 'Parking Slot',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _getStatusColor(booking.status).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            booking.status.toUpperCase(),
+                            style: TextStyle(
+                              color: _getStatusColor(booking.status),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    Row(
+                      children: [
+                        const Icon(Icons.calendar_today, size: 16, color: Colors.blueGrey),
+                        const SizedBox(width: 8),
+                        Text(
+                          // --- UPDATE: Use displayStart here ---
+                          DateFormat('EEE, MMM dd').format(displayStart),
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '₹${booking.totalPrice.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 16, color: Colors.blueGrey),
+                        const SizedBox(width: 8),
+                        Text(
+                          // --- UPDATE: Use displayStart and displayEnd here ---
+                          '${DateFormat('HH:mm').format(displayStart)} - ${DateFormat('HH:mm').format(displayEnd)}',
+                          style: TextStyle(color: Colors.grey[700]),
+                        ),
+                      ],
+                    ),
+                    if (!isPast && booking.qrCode != null) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Icon(Icons.qr_code, size: 16, color: Theme.of(context).primaryColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            'View Entry QR Code',
+                            style: TextStyle(
+                              color: Theme.of(context).primaryColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ]
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
   @override
   Widget build(BuildContext context) {
+    // Logic to separate bookings
+    final activeBookings = _bookings.where((b) => 
+      b.status.toLowerCase() == 'confirmed' || b.status.toLowerCase() == 'active'
+    ).toList();
+    
+    final pastBookings = _bookings.where((b) => 
+      b.status.toLowerCase() == 'completed' || b.status.toLowerCase() == 'cancelled'
+    ).toList();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Booking History'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadBookings,
-          ),
-        ],
+        title: const Text('My Bookings'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Active'),
+            Tab(text: 'History'),
+          ],
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _error!,
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _loadBookings,
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                )
-              : _bookings.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.history,
-                            size: 64,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No bookings found',
-                            style: TextStyle(color: Colors.grey[600]),
-                          ),
-                        ],
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _loadBookings,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _bookings.length,
-                        itemBuilder: (context, index) {
-                          final booking = _bookings[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 16),
-                            child: InkWell(
-                              onTap: () {
-                                if (booking.qrCode != null) {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => QRCodeScreen(
-                                        booking: booking,
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(16),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            booking.parking?.name ?? 'Parking',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleLarge
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                          ),
-                                        ),
-                                        Chip(
-                                          label: Text(
-                                            booking.status.toUpperCase(),
-                                            style: const TextStyle(
-                                              fontSize: 10,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                          backgroundColor:
-                                              _getStatusColor(booking.status),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.local_parking,
-                                          size: 16,
-                                          color: Colors.grey[600],
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'Slot ${booking.slotNumber}',
-                                          style: TextStyle(
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        Text(
-                                          '₹${booking.totalPrice.toStringAsFixed(2)}',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .primary,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.access_time,
-                                          size: 16,
-                                          color: Colors.grey[600],
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            '${DateFormat('MMM dd, HH:mm').format(booking.startTime)} - ${DateFormat('MMM dd, HH:mm').format(booking.endTime)}',
-                                            style: TextStyle(
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (booking.qrCode != null) ...[
-                                      const SizedBox(height: 12),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.qr_code,
-                                            size: 16,
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            'Tap to view QR code',
-                                            style: TextStyle(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                              fontWeight: FontWeight.w500,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
+              ? Center(child: Text(_error!)) // Simple error display
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildBookingList(activeBookings),
+                    _buildBookingList(pastBookings),
+                  ],
+                ),
     );
   }
 }

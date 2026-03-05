@@ -18,6 +18,7 @@ import '../owner/owner_dashboard_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../bookings/booking_history_screen.dart';
 
+// Your default start point
 const LatLng _defaultCenter = LatLng(8.5459, 76.9063);
 
 class HomeScreen extends StatefulWidget {
@@ -39,19 +40,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<LatLng> _routePoints = [];
   bool _loadingRoute = false;
-  bool _loadingParkings = false;
 
   LatLng _mapCenter = _defaultCenter;
 
   @override
   void initState() {
     super.initState();
-    // Start with default location (fast load, no lag)
+    _initLocation();
     _loadParkings();
-    // Then get current location in background
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initLocation();
-    });
   }
 
   @override
@@ -62,42 +58,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initLocation() async {
-    try {
-      final perm = await Geolocator.requestPermission();
-      if (perm == LocationPermission.denied ||
-          perm == LocationPermission.deniedForever) return;
+    final perm = await Geolocator.requestPermission();
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) return;
 
-      // Get current position once
-      final pos = await Geolocator.getCurrentPosition();
-      _updateUserPosition(pos);
+    final pos = await Geolocator.getCurrentPosition();
+    _updateUserPosition(pos);
 
-      // Listen to position stream for continuous updates
-      // Increased distanceFilter to 100m to reduce API calls and prevent lag
-      _posStream = Geolocator.getPositionStream(
-        locationSettings:
-            const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 100),
-      ).listen(_updateUserPosition);
-    } catch (e) {
-      print('Error initializing location stream: $e');
-    }
+    _posStream = Geolocator.getPositionStream(
+      locationSettings:
+          const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 5),
+    ).listen(_updateUserPosition);
   }
 
   void _updateUserPosition(Position pos) {
     setState(() {
       _userPosition = pos;
-      _mapCenter = LatLng(pos.latitude, pos.longitude);
     });
-    // Throttle parking reload to prevent excessive API calls
-    if (!_loadingParkings) {
-      _loadParkings();
-    }
   }
 
   Future<void> _loadParkings() async {
-    if (_userPosition == null) return;
-    
-    _loadingParkings = true;
-
     final res = await ApiService.getParkings(
       latitude: _mapCenter.latitude,
       longitude: _mapCenter.longitude,
@@ -111,8 +91,6 @@ class _HomeScreenState extends State<HomeScreen> {
             .toList();
       });
     }
-    
-    _loadingParkings = false;
   }
 
   Future<void> _searchLocation(String query) async {
@@ -135,7 +113,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _getDirections(Parking parking) async {
-    if (_userPosition == null) return;
+    // FIXED: Strictly using live GPS coordinates if available
+    // If GPS isn't ready, it uses the default point so it doesn't crash
+    final startLon = _userPosition?.longitude ?? _defaultCenter.longitude;
+    final startLat = _userPosition?.latitude ?? _defaultCenter.latitude;
 
     setState(() {
       _selectedParking = parking;
@@ -143,31 +124,19 @@ class _HomeScreenState extends State<HomeScreen> {
       _loadingRoute = true;
     });
 
-    try {
-      final url = Uri.parse(
-          'https://router.project-osrm.org/route/v1/driving/${_userPosition!.longitude},${_userPosition!.latitude};${parking.location.longitude},${parking.location.latitude}?overview=full&geometries=geojson');
+    final url = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/$startLon,$startLat;${parking.location.longitude},${parking.location.latitude}?overview=full&geometries=geojson');
 
-      final res = await http.get(url);
-      final data = jsonDecode(res.body);
+    final res = await http.get(url);
+    final data = jsonDecode(res.body);
 
-      if (data['routes'] != null && data['routes'].isNotEmpty) {
-        final coords = data['routes'][0]['geometry']['coordinates'];
-
-        setState(() {
-          _routePoints =
-              coords.map<LatLng>((c) => LatLng(c[1].toDouble(), c[0].toDouble())).toList();
-          _loadingRoute = false;
-        });
-      } else {
-        throw Exception('No route found');
-      }
-    } catch (e) {
+    if (data['routes'] != null && data['routes'].isNotEmpty) {
+      final coords = data['routes'][0]['geometry']['coordinates'];
       setState(() {
+        _routePoints =
+            coords.map<LatLng>((c) => LatLng(c[1].toDouble(), c[0].toDouble())).toList();
         _loadingRoute = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to get directions: $e')),
-      );
     }
   }
 
@@ -224,9 +193,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthService>(context);
-    final user = auth.user;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Smart Parking'),
@@ -293,19 +259,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.smartparking.app',
               ),
+              
+              // Draws the direction line on the map
+              if (_routePoints.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _routePoints,
+                      strokeWidth: 5,
+                      color: Colors.blueAccent,
+                    ),
+                  ],
+                ),
+
               MarkerLayer(
                 markers: [
+                  // BLUE ICON FOR YOUR GPS LOCATION
                   if (_userPosition != null)
                     Marker(
                       point: LatLng(_userPosition!.latitude, _userPosition!.longitude),
-                      width: 40,
-                      height: 40,
-                      child: const Icon(
-                        Icons.my_location,
-                        color: Colors.blue,
-                        size: 30,
-                      ),
+                      width: 20,
+                      height: 20,
+                      child: const Icon(Icons.circle, color: Colors.blue, size: 18),
                     ),
+
                   ..._parkings.map((p) {
                     return Marker(
                       point: LatLng(p.location.latitude, p.location.longitude),
@@ -317,16 +294,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     );
                   }).toList(),
-                ],
-              ),
-              PolylineLayer(
-                polylines: [
-                  if (_routePoints.isNotEmpty)
-                    Polyline(
-                      points: _routePoints,
-                      color: Colors.blue,
-                      strokeWidth: 4.0,
-                    ),
                 ],
               ),
             ],

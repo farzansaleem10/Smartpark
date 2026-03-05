@@ -6,10 +6,15 @@ import 'booking_confirmation_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   final Parking parking;
+  // Added these parameters to receive data from the Details screen
+  final DateTime? defaultStartTime;
+  final DateTime? defaultEndTime;
 
   const BookingScreen({
     super.key,
     required this.parking,
+    this.defaultStartTime,
+    this.defaultEndTime,
   });
 
   @override
@@ -26,8 +31,11 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   void initState() {
     super.initState();
-    _startTime = DateTime.now().add(const Duration(hours: 1));
-    _endTime = _startTime!.add(const Duration(hours: 2));
+    // Use the passed IST time or default to current local time
+    _startTime = widget.defaultStartTime ?? DateTime.now();
+    // Use the passed end time or default to 1 hour after start
+    _endTime = widget.defaultEndTime ?? _startTime!.add(const Duration(hours: 1));
+    
     _checkAvailability();
   }
 
@@ -74,8 +82,9 @@ class _BookingScreenState extends State<BookingScreen> {
             time.hour,
             time.minute,
           );
+          // When changing start time, ensure end time is at least 1 hour later
           if (_endTime == null || _endTime!.isBefore(_startTime!)) {
-            _endTime = _startTime!.add(const Duration(hours: 2));
+            _endTime = _startTime!.add(const Duration(hours: 1));
           }
         });
         _checkAvailability();
@@ -93,7 +102,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _endTime ?? _startTime!,
+      initialDate: _endTime ?? _startTime!.add(const Duration(hours: 1)),
       firstDate: _startTime!,
       lastDate: DateTime.now().add(const Duration(days: 30)),
     );
@@ -101,7 +110,7 @@ class _BookingScreenState extends State<BookingScreen> {
     if (picked != null) {
       final TimeOfDay? time = await showTimePicker(
         context: context,
-        initialTime: TimeOfDay.fromDateTime(_endTime ?? _startTime!),
+        initialTime: TimeOfDay.fromDateTime(_endTime ?? _startTime!.add(const Duration(hours: 1))),
       );
 
       if (time != null) {
@@ -133,8 +142,10 @@ class _BookingScreenState extends State<BookingScreen> {
 
   double _calculatePrice() {
     if (_startTime == null || _endTime == null) return 0.0;
-    final duration = _endTime!.difference(_startTime!).inHours;
-    return duration * widget.parking.pricePerHour;
+    // Calculate total minutes to handle partial hours fairly
+    final durationMinutes = _endTime!.difference(_startTime!).inMinutes;
+    final hours = durationMinutes / 60.0;
+    return hours * widget.parking.pricePerHour;
   }
 
   Future<void> _createBooking() async {
@@ -250,8 +261,7 @@ class _BookingScreenState extends State<BookingScreen> {
                 title: const Text('Start Time'),
                 subtitle: Text(
                   _startTime != null
-                      ? DateFormat('MMM dd, yyyy - HH:mm')
-                          .format(_startTime!)
+                      ? DateFormat('MMM dd, yyyy - HH:mm').format(_startTime!)
                       : 'Not selected',
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -339,7 +349,7 @@ class _BookingScreenState extends State<BookingScreen> {
                         ),
                         Text(
                           _startTime != null && _endTime != null
-                              ? '${_endTime!.difference(_startTime!).inHours} hours'
+                              ? '${(_endTime!.difference(_startTime!).inMinutes / 60.0).toStringAsFixed(1)} hours'
                               : '0 hours',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,

@@ -25,7 +25,9 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize with current IST
     _currentTime = DateTime.now();
+    
     // Update current time every minute
     Future.delayed(const Duration(minutes: 1), () {
       if (mounted) {
@@ -102,7 +104,6 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Parking Image Placeholder
                           Container(
                             height: 200,
                             color: Colors.grey[300],
@@ -142,8 +143,7 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                                           Icons.verified,
                                           size: 18,
                                         ),
-                                        backgroundColor:
-                                            Colors.green[100],
+                                        backgroundColor: Colors.green[100],
                                       ),
                                   ],
                                 ),
@@ -237,14 +237,14 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                                   const SizedBox(height: 8),
                                   Row(
                                     children: [
-                                      Icon(
+                                      const Icon(
                                         Icons.star,
                                         color: Colors.amber,
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
                                         '${_parking!.rating.average.toStringAsFixed(1)} (${_parking!.rating.count} reviews)',
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
@@ -279,10 +279,18 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
                                   child: ElevatedButton(
                                     onPressed: _parking!.availableSlots > 0
                                         ? () {
+                                            // Calculate default Start and End times
+                                            final DateTime startTime = DateTime.now();
+                                            final DateTime endTime = startTime.add(const Duration(hours: 1));
+
                                             Navigator.of(context).push(
                                               MaterialPageRoute(
                                                 builder: (_) => BookingScreen(
                                                   parking: _parking!,
+                                                  // Pass these if your BookingScreen accepts them, 
+                                                  // or ensure BookingScreen initializes using these defaults.
+                                                  defaultStartTime: startTime,
+                                                  defaultEndTime: endTime,
                                                 ),
                                               ),
                                             );
@@ -321,12 +329,10 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
   }
 
   String _formatTimeIST(DateTime dateTime) {
-    // Format time in IST (UTC+5:30)
     return DateFormat('hh:mm a').format(dateTime);
   }
 
   String _getCurrentTimeIST() {
-    // Return current time in IST format
     return DateFormat('dd MMM, yyyy • hh:mm a').format(_currentTime);
   }
 
@@ -338,7 +344,6 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
       final openTime = _parking!.operatingHours.open;
       final closeTime = _parking!.operatingHours.close;
 
-      // Simple time comparison (assumes times are in HH:mm format)
       return currentTimeStr.compareTo(openTime) >= 0 &&
           currentTimeStr.compareTo(closeTime) < 0;
     } catch (_) {
