@@ -101,7 +101,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
     if (confirmed == true) {
       try {
-        // Assuming your ApiService has a toggle/update method
         final response = await ApiService.updateUserStatus(userId, !isCurrentlyActive);
         if (response['success']) {
           _loadUsers();
@@ -110,6 +109,38 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       } catch (e) {
         _showSnackBar(e.toString(), Colors.red);
       }
+    }
+  }
+
+  Future<void> _deleteParking(String parkingId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Parking Space'),
+        content: const Text('Are you sure you want to remove this parking space? This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final response = await ApiService.deleteParking(parkingId);
+      if (response['success']) {
+        _showSnackBar('Parking space removed successfully', Colors.green);
+        _loadUsers();
+      } else {
+        _showSnackBar(response['message'] ?? 'Failed to remove parking space', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar(e.toString(), Colors.red);
     }
   }
 
@@ -261,6 +292,62 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   children: [
                     _buildDetailRow('Phone', user['phone'] ?? 'N/A'),
                     _buildDetailRow('Account Status', isActive ? 'Active' : 'Deactivated'),
+                    if ((user['role'] ?? '').toString().toLowerCase().trim() == 'owner') ...[
+                      const SizedBox(height: 12),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text('Owner Parking Spaces', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(height: 8),
+                      if ((user['ownerParkings'] as List<dynamic>?)?.isEmpty ?? true)
+                        const Text('No parking spaces found for this owner.'),
+                      ...((user['ownerParkings'] as List<dynamic>?) ?? []).map((parking) {
+                        final docs = parking['documents'] as Map<String, dynamic>?;
+                        final additionalDocs = (docs?['additionalDocuments'] as List<dynamic>?)?.cast<String>() ?? [];
+
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(parking['name'] ?? 'Unnamed Parking', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '${parking['address']?['street'] ?? ''}, ${parking['address']?['city'] ?? ''}',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                                const SizedBox(height: 8),
+                                _buildDetailRow('Slots', '${parking['availableSlots'] ?? 0}/${parking['totalSlots'] ?? 0}'),
+                                _buildDetailRow('Price/hr', '₹${parking['pricePerHour'] ?? 0}'),
+                                _buildDetailRow('Status', '${parking['approvalStatus'] ?? 'unknown'}'),
+                                _buildDetailRow('Verified', '${parking['isVerified'] == true ? 'Yes' : 'No'}'),
+                                if (docs != null) ...[
+                                  const SizedBox(height: 8),
+                                  const Text('Documents', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 6),
+                                  _buildDetailRow('License', docs['license'] ?? 'N/A'),
+                                  _buildDetailRow('ID Proof', docs['idProof'] ?? 'N/A'),
+                                  _buildDetailRow('Ownership', docs['ownershipProof'] ?? 'N/A'),
+                                  if (additionalDocs.isNotEmpty)
+                                    _buildDetailRow('Additional Docs', additionalDocs.join(', ')),
+                                ],
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    onPressed: () => _deleteParking(parking['_id'].toString()),
+                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    label: const Text('Remove', style: TextStyle(color: Colors.red)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ],
                     const Divider(),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,

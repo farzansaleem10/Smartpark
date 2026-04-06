@@ -245,6 +245,44 @@ router.put('/:id', authenticate, async (req, res) => {
 });
 
 /**
+ * @route   DELETE /api/parking/:id
+ * @desc    Delete parking space (Admin or owner)
+ * @access  Private/Admin or Owner
+ */
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const parking = await Parking.findById(req.params.id);
+
+    if (!parking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Parking space not found',
+      });
+    }
+
+    if (req.user.role !== 'admin' && parking.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this parking space',
+      });
+    }
+
+    await parking.deleteOne();
+
+    res.json({
+      success: true,
+      message: 'Parking space deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete parking error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+});
+
+/**
  * @route   GET /api/parking/owner/my-parkings
  * @desc    Get all parkings owned by current user
  * @access  Private/Owner

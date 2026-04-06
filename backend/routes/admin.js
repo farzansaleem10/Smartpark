@@ -298,11 +298,19 @@ router.get('/users', async (req, res) => {
           return sum + (booking.totalPrice || 0);
         }, 0);
 
+        let ownerParkings = [];
+        if (user.role === 'owner') {
+          ownerParkings = await Parking.find({ owner: user._id })
+            .select('name address location totalSlots availableSlots pricePerHour approvalStatus isVerified documents createdAt')
+            .sort({ createdAt: -1 });
+        }
+
         return {
           ...user.toObject(),
           bookingHistory: bookings,
           totalBookings,
           totalSpent,
+          ownerParkings,
         };
       })
     );

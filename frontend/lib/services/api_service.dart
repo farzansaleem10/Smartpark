@@ -344,6 +344,15 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> deleteParking(String parkingId) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/parking/$parkingId'),
+      headers: await _getHeaders(),
+    );
+
+    return _handleResponse(response);
+  }
+
   static Future<Map<String, dynamic>> approveParkingRequest(String id) async {
 
     final response = await http.put(
