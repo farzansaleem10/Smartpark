@@ -7,7 +7,7 @@ class ApiService {
   static const String baseUrl = 'http://localhost:5000/api' ;
   // static const String baseUrl =  'http://10.0.2.2:5000/api';emulator
   // For iOS simulator, use: http://localhost:5000/api
-  // static const String baseUrl = 'http://192.168.1.57:5000/api';
+  //  static const String baseUrl = 'http://10.18.157.100:5000/api';
 
   // Get auth token from storage
   static Future<String?> _getToken() async {
@@ -326,6 +326,22 @@ class ApiService {
     );
 
     return _handleResponse(response);
+  }
+  static Future<Map<String, dynamic>> updateUserStatus(String userId, bool isActive) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/admin/users/$userId/status'),
+        headers: await _getHeaders(),
+        body: json.encode({'isActive': isActive}),
+      );
+
+      return _handleResponse(response);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': e.toString().replaceAll('Exception: ', ''),
+      };
+    }
   }
 
   static Future<Map<String, dynamic>> approveParkingRequest(String id) async {

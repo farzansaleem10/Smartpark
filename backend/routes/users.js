@@ -60,15 +60,52 @@ router.put('/profile', async (req, res) => {
  * @route   GET /api/users
  * @desc    Get all users (Admin only)
  * @access  Private/Admin
+ * @note    Updated to ensure 'role' and 'isActive' are sent to Flutter
  */
 router.get('/', authorize('admin'), async (req, res) => {
   try {
-    const users = await User.find().select('-password');
+    // We explicitly select the fields needed for the Flutter filtering logic
+    const users = await User.find().select('name email role phone isActive createdAt');
     
     res.json({
       success: true,
       count: users.length,
       data: { users },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+});
+
+/**
+ * @route   PATCH /api/users/:id/status
+ * @desc    Toggle user active status (Admin only)
+ * @access  Private/Admin
+ */
+router.patch('/:id/status', authorize('admin'), async (req, res) => {
+  try {
+    const { isActive } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { isActive },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `User account ${isActive ? 'activated' : 'deactivated'} successfully`,
+      data: { user },
     });
   } catch (error) {
     res.status(500).json({

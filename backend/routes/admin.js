@@ -218,13 +218,21 @@ router.get('/analytics', async (req, res) => {
       }
     });
 
-    // Get owner details for income breakdown
-    const ownerIds = Object.keys(incomePerOwner);
-    let owners = [];
-    if (ownerIds.length > 0) {
-      owners = await User.find({ _id: { $in: ownerIds }, role: 'owner' })
-        .select('name email phone');
-    }
+    // Get all owners and make sure owners with zero bookings are included
+    const owners = await User.find({ role: 'owner' }).select('name email phone');
+
+    owners.forEach(owner => {
+      const ownerId = owner._id.toString();
+      if (!incomePerOwner[ownerId]) {
+        incomePerOwner[ownerId] = {
+          ownerId,
+          ownerName: owner.name || 'Unknown',
+          totalIncome: 0,
+          parkingCount: 0,
+          bookingsCount: 0,
+        };
+      }
+    });
 
     // Enrich income per owner with owner details
     const incomeBreakdown = Object.values(incomePerOwner).map(item => {
@@ -274,14 +282,14 @@ router.get('/analytics', async (req, res) => {
  */
 router.get('/users', async (req, res) => {
   try {
-    const customers = await User.find({ role: 'user' })
+    const users = await User.find({ role: { $in: ['user', 'owner'] } })
       .select('-password')
       .sort({ createdAt: -1 });
 
-    // Get booking history for each customer
+    // Get booking history for each user / owner
     const usersWithBookings = await Promise.all(
-      customers.map(async (customer) => {
-        const bookings = await Booking.find({ user: customer._id })
+      users.map(async (user) => {
+        const bookings = await Booking.find({ user: user._id })
           .populate('parking', 'name address location pricePerHour')
           .sort({ createdAt: -1 });
 
@@ -291,7 +299,7 @@ router.get('/users', async (req, res) => {
         }, 0);
 
         return {
-          ...customer.toObject(),
+          ...user.toObject(),
           bookingHistory: bookings,
           totalBookings,
           totalSpent,

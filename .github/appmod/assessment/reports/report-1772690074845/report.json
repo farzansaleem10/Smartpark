@@ -1,0 +1,559 @@
+{
+  "version": "1.0.0",
+  "producer": "Java AppCAT CLI",
+  "metadata": {
+    "analysisStartTime": "2026-03-05T05:54:34.8451618Z",
+    "analysisEndTime": "2026-03-05T06:03:10.2710539Z",
+    "status": "completed",
+    "privacyMode": "Protected",
+    "privacyModeHelpUrl": "https://aka.ms/appcat-privacy-mode",
+    "targetIds": [
+      "azure-aks",
+      "azure-appservice",
+      "azure-container-apps"
+    ],
+    "targetDisplayNames": [
+      "Azure Kubernetes Service",
+      "Azure App Service",
+      "Azure Container Apps"
+    ],
+    "capabilities": [],
+    "os": [],
+    "id": "1772690074845",
+    "name": "Report_202603051124",
+    "domains": [
+      "cloud-readiness",
+      "java-upgrade"
+    ],
+    "mode": "issue-only"
+  },
+  "summary": {
+    "totalProjects": 1,
+    "totalIssues": 2,
+    "totalIncidents": 17,
+    "totalEffort": 17,
+    "charts": {
+      "severity": {
+        "mandatory": 17,
+        "optional": 0,
+        "potential": 0,
+        "information": 0
+      },
+      "category": {
+        "containerization": 1,
+        "region-configuration": 16
+      }
+    },
+    "security": {}
+  },
+  "projects": [
+    {
+      "path": ".",
+      "issues": 2,
+      "storyPoints": 17,
+      "properties": {
+        "appName": "SmartPark",
+        "jdkVersion": "Unknown",
+        "frameworks": [
+          "Express"
+        ],
+        "languages": [
+          "JavaScript",
+          "Java"
+        ],
+        "tools": [
+          "NodeJs"
+        ]
+      },
+      "incidents": [
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "3fd45880-81f2-442c-b8d6-8a095b27b6f8",
+          "location": "backend/node_modules/mongodb/lib/cmap/handshake/client_metadata.js",
+          "locationKind": "File",
+          "line": 108,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "647d40f5-b710-4885-ab64-729e09bf1f2a",
+          "location": "backend/node_modules/mongodb/lib/cmap/handshake/client_metadata.js",
+          "locationKind": "File",
+          "line": 124,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "5db8236a-7eb4-46d3-b150-174f1bf0059c",
+          "location": "backend/node_modules/mongodb/lib/cmap/handshake/client_metadata.js",
+          "locationKind": "File",
+          "line": 125,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "2a3105bd-1f02-4387-82de-eb4f1aac7e2f",
+          "location": "backend/node_modules/mongodb/src/cmap/auth/mongodb_aws.ts",
+          "locationKind": "File",
+          "line": 236,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "6f14f684-e375-462b-9c58-409ed11b3801",
+          "location": "backend/node_modules/mongodb/src/cmap/auth/mongodb_aws.ts",
+          "locationKind": "File",
+          "line": 238,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "7061957e-8ab8-4082-b8ba-e35b1d6924e6",
+          "location": "backend/node_modules/mongodb/src/cmap/auth/mongodb_aws.ts",
+          "locationKind": "File",
+          "line": 242,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "b11c5b8b-3572-420d-bccb-a0324fff6607",
+          "location": "backend/node_modules/mongodb/src/cmap/auth/mongodb_aws.ts",
+          "locationKind": "File",
+          "line": 253,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "44a63df0-e650-482c-b24e-ba46472c4dcf",
+          "location": "backend/node_modules/mongodb/src/cmap/auth/mongodb_aws.ts",
+          "locationKind": "File",
+          "line": 258,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "8659ac17-d910-4533-970f-15bb82a5f319",
+          "location": "backend/node_modules/mongodb/src/cmap/handshake/client_metadata.ts",
+          "locationKind": "File",
+          "line": 172,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "938f2550-39fb-469c-a576-0b2ef4627340",
+          "location": "backend/node_modules/mongodb/src/cmap/handshake/client_metadata.ts",
+          "locationKind": "File",
+          "line": 199,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "4a6cfb16-a5fc-4465-81e8-eb0965b6671c",
+          "location": "backend/node_modules/mongodb/src/cmap/handshake/client_metadata.ts",
+          "locationKind": "File",
+          "line": 200,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "113cc03a-4cc3-465e-89ce-3562bf0a7f65",
+          "location": "backend/node_modules/mongodb/lib/cmap/auth/mongodb_aws.js",
+          "locationKind": "File",
+          "line": 177,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "fa5e5a62-8540-42bc-9d21-38b5a46461ad",
+          "location": "backend/node_modules/mongodb/lib/cmap/auth/mongodb_aws.js",
+          "locationKind": "File",
+          "line": 179,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "9c8ccc8b-f6fd-47d5-8539-d83e401227db",
+          "location": "backend/node_modules/mongodb/lib/cmap/auth/mongodb_aws.js",
+          "locationKind": "File",
+          "line": 181,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "165b100d-bd9d-436d-b7ee-2b2b9c4408ed",
+          "location": "backend/node_modules/mongodb/lib/cmap/auth/mongodb_aws.js",
+          "locationKind": "File",
+          "line": 190,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "azure-aws-config-region-02000",
+          "incidentId": "4e6bab14-43af-40c6-ac3b-0df82c176818",
+          "location": "backend/node_modules/mongodb/lib/cmap/auth/mongodb_aws.js",
+          "locationKind": "File",
+          "line": 193,
+          "column": 0,
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-appservice": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=azure/springboot"
+          ]
+        },
+        {
+          "ruleId": "dockerfile-00000",
+          "incidentId": "343f260a-bb25-4ff2-81bd-1d2f644d9b1d",
+          "location": "",
+          "locationKind": "",
+          "targets": {
+            "azure-aks": {
+              "effort": 1,
+              "severity": "mandatory"
+            },
+            "azure-container-apps": {
+              "effort": 1,
+              "severity": "mandatory"
+            }
+          },
+          "labels": [
+            "type=violation",
+            "ruleset=cloud-readiness"
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": {
+    "azure-aws-config-region-02000": {
+      "id": "azure-aws-config-region-02000",
+      "description": "The application contains AWS region configuration.\n\n * Identify **Azure regions**: Determine the Azure regions that align with your application's requirements for availability, latency, compliance, and data residency. Azure provides a wide range of regions globally.\n\n * Update **configuration settings**: Modify the Java application's configuration to replace the AWS region configuration with the corresponding Azure region configuration. Update the code or configuration files to reflect the Azure region names or identifiers.",
+      "title": "AWS region configuration",
+      "severity": "mandatory",
+      "effort": 1,
+      "links": [
+        {
+          "url": "https://azure.microsoft.com/explore/global-infrastructure/geographies",
+          "title": "Azure geographies"
+        }
+      ],
+      "labels": [
+        "target=azure-appservice",
+        "target=azure-aks",
+        "target=azure-container-apps",
+        "source",
+        "domain=cloud-readiness",
+        "category=region-configuration",
+        "AWS",
+        "os=windows",
+        "os=linux"
+      ]
+    },
+    "dockerfile-00000": {
+      "id": "dockerfile-00000",
+      "description": "No Dockerfile was found in the project. This suggests the application may not yet be containerized. \nConsider creating a Dockerfile to enable container-based replatforming to Azure services such as Azure Container Apps or AKS.",
+      "title": "No Dockerfile found",
+      "severity": "mandatory",
+      "effort": 1,
+      "links": [
+        {
+          "url": "https://www.baeldung.com/java-dockerize-app",
+          "title": "Dockerizing a Java Application"
+        }
+      ],
+      "labels": [
+        "target=azure-aks",
+        "target=azure-container-apps",
+        "capability=containerization",
+        "source",
+        "domain=cloud-readiness",
+        "category=containerization",
+        "containerization",
+        "os=windows",
+        "os=linux"
+      ]
+    }
+  },
+  "security": []
+}

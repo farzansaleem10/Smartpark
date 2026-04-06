@@ -30,6 +30,11 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'owner', 'admin'],
     default: 'user',
   },
+  // Added isActive field to support admin deactivation
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
   avatar: {
     type: String,
     default: '',
