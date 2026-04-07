@@ -21,11 +21,9 @@ router.get('/parking-requests', async (req, res) => {
     const { status } = req.query;
     let query = {};
     
-    // Filter by approval status if provided
     if (status) {
       query.approvalStatus = status;
     } else {
-      // Default: show pending requests
       query.approvalStatus = 'pending';
     }
 
@@ -165,7 +163,6 @@ router.put('/parking-requests/:id/reject', [
  */
 router.get('/analytics', async (req, res) => {
   try {
-    // Get all completed bookings
     const allBookings = await Booking.find({ 
       status: { $in: ['completed', 'active'] },
       paymentStatus: { $in: ['paid', 'pending'] }
@@ -180,25 +177,20 @@ router.get('/analytics', async (req, res) => {
       })
       .populate('user', 'name email');
 
-    // Calculate total income from all parking locations
     const totalIncome = allBookings.reduce((sum, booking) => {
       return sum + (booking.totalPrice || 0);
     }, 0);
 
-    // Calculate income per parking owner
     const incomePerOwner = {};
     allBookings.forEach(booking => {
-      // Handle both populated and non-populated owner references
       let ownerId = null;
       let ownerName = 'Unknown';
       
       if (booking.parking) {
         if (booking.parking.owner && typeof booking.parking.owner === 'object') {
-          // Owner is populated
           ownerId = booking.parking.owner._id?.toString() || booking.parking.owner.id?.toString();
           ownerName = booking.parking.owner.name || 'Unknown';
         } else if (booking.parking.owner) {
-          // Owner is just an ID
           ownerId = booking.parking.owner.toString();
         }
       }
@@ -218,7 +210,6 @@ router.get('/analytics', async (req, res) => {
       }
     });
 
-    // Get all owners and make sure owners with zero bookings are included
     const owners = await User.find({ role: 'owner' }).select('name email phone');
 
     owners.forEach(owner => {
@@ -234,7 +225,6 @@ router.get('/analytics', async (req, res) => {
       }
     });
 
-    // Enrich income per owner with owner details
     const incomeBreakdown = Object.values(incomePerOwner).map(item => {
       const owner = owners.find(o => o._id.toString() === item.ownerId);
       return {
@@ -245,13 +235,8 @@ router.get('/analytics', async (req, res) => {
       };
     });
 
-    // Count total bookings till date
     const totalBookings = await Booking.countDocuments({});
-
-    // Count parking spaces
     const totalParkingSpaces = await Parking.countDocuments({ approvalStatus: 'approved' });
-
-    // Count total users
     const totalUsers = await User.countDocuments({ role: 'user' });
     const totalOwners = await User.countDocuments({ role: 'owner' });
 
@@ -286,7 +271,6 @@ router.get('/users', async (req, res) => {
       .select('-password')
       .sort({ createdAt: -1 });
 
-    // Get booking history for each user / owner
     const usersWithBookings = await Promise.all(
       users.map(async (user) => {
         const bookings = await Booking.find({ user: user._id })
@@ -300,8 +284,9 @@ router.get('/users', async (req, res) => {
 
         let ownerParkings = [];
         if (user.role === 'owner') {
+          // FIXED: Included 'licenseDocument' in the select string
           ownerParkings = await Parking.find({ owner: user._id })
-            .select('name address location totalSlots availableSlots pricePerHour approvalStatus isVerified documents createdAt')
+            .select('name address location totalSlots availableSlots pricePerHour approvalStatus isVerified documents licenseDocument createdAt')
             .sort({ createdAt: -1 });
         }
 

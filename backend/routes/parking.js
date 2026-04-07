@@ -3,8 +3,33 @@ const { body, validationResult } = require('express-validator');
 const Parking = require('../models/Parking');
 const Booking = require('../models/Booking');
 const { authenticate, authorize } = require('../middleware/auth');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const router = express.Router();
+
+/**
+ * Multer Configuration
+ */
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = 'uploads/documents/';
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname.replace(/\s/g, '_')}`);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 /**
  * @route   GET /api/parking
@@ -157,8 +182,10 @@ router.get('/:id/details', async (req, res) => {
  * @desc    Create new parking space (Owner only)
  * @access  Private/Owner
  */
-router.post('/', authenticate, authorize('owner', 'admin'), [
+// UPDATED: Now uses upload.single middleware to process the physical file
+router.post('/', authenticate, authorize('owner', 'admin'), upload.single('licenseDocument'), [
   body('name').notEmpty().withMessage('Parking name is required'),
+  body('type').notEmpty().withMessage('Parking type is required'),
   body('address.street').notEmpty().withMessage('Street address is required'),
   body('address.city').notEmpty().withMessage('City is required'),
   body('location.latitude').isFloat().withMessage('Valid latitude is required'),
@@ -176,10 +203,20 @@ router.post('/', authenticate, authorize('owner', 'admin'), [
       });
     }
 
+    // Check if file was actually uploaded by multer
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'License document file is required',
+      });
+    }
+
     const parkingData = {
       ...req.body,
       owner: req.user._id,
       availableSlots: req.body.totalSlots,
+      // Store the server path so the Admin can access it via URL later
+      licenseDocument: `/uploads/documents/${req.file.filename}`
     };
 
     const parking = await Parking.create(parkingData);

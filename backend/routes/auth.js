@@ -203,28 +203,48 @@ router.post('/login', [
  * @desc    Get current user
  * @access  Private
  */
+/**
+ * @route   GET /api/auth/me
+ * @desc    Get current logged in user
+ * @access  Private
+ */
 router.get('/me', authenticate, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    
+    // 1. ADD THIS CHECK: Intercept the hardcoded admin ID
+    if (req.user._id === 'admin_special_id') {
+      return res.json({
+        success: true,
+        data: {
+          user: {
+            _id: 'admin_special_id',
+            name: 'System Admin',
+            email: 'admin@test.com', // Use whatever email you used for the hardcoded admin
+            role: 'admin'
+          }
+        }
+      });
+    }
+
+    // 2. Normal database lookup for regular users and owners
+    const user = await User.findById(req.user._id).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
     res.json({
       success: true,
-      data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          phone: user.phone,
-          avatar: user.avatar,
-        },
-      },
+      data: { user }
     });
+    
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
+      message: 'Server error'
     });
   }
 });

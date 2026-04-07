@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../models/parking.dart';
 import 'add_parking_screen.dart';
@@ -29,10 +28,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
 
   void _loadData() {
     setState(() {
-      _parkingsFuture = ApiService.getOwnerParkings().catchError((error) {
-        // Fallback to existing endpoint if new one doesn't exist
-        return ApiService.getMyParkings();
-      });
+      // Use owner/my-parkings to get live available slot counts.
+      _parkingsFuture = ApiService.getMyParkings();
       _earningsFuture = ApiService.getOwnerEarnings();
       _analyticsFuture = ApiService.getOwnerAnalytics();
     });
@@ -175,6 +172,29 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                 )
                                     .then((_) {
                                   // Refresh data when returning from details screen
+                                  _loadData();
+                                });
+                              },
+                              onEditDetails: () {
+                                if (parking.id.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Invalid parking ID'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                  return;
+                                }
+                                Navigator.of(context)
+                                    .push(
+                                  MaterialPageRoute(
+                                    builder: (_) => EditParkingScreen(
+                                      parking: parking,
+                                    ),
+                                  ),
+                                )
+                                    .then((_) {
+                                  // Refresh data when returning from edit screen
                                   _loadData();
                                 });
                               },
@@ -412,10 +432,12 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
 class _ParkingCard extends StatelessWidget {
   final Parking parking;
   final VoidCallback onViewDetails;
+  final VoidCallback onEditDetails;
 
   const _ParkingCard({
     required this.parking,
     required this.onViewDetails,
+    required this.onEditDetails,
   });
 
   @override
@@ -478,12 +500,22 @@ class _ParkingCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: onViewDetails,
-                  child: const Text('View Details'),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: onViewDetails,
+                      child: const Text('View Details'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onEditDetails,
+                      child: const Text('Edit Parking details'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

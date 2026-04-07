@@ -34,22 +34,38 @@ class Parking {
   });
 
   factory Parking.fromJson(Map<String, dynamic> json) {
+    int parseInt(dynamic value) {
+      if (value == null) return 0;
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? 0;
+      return 0;
+    }
+
+    double parseDouble(dynamic value) {
+      if (value == null) return 0.0;
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? 0.0;
+      return 0.0;
+    }
+
     return Parking(
       id: json['_id'] ?? json['id'] ?? '',
       name: json['name'] ?? '',
       description: json['description'],
       address: Address.fromJson(json['address'] ?? {}),
       location: Location.fromJson(json['location'] ?? {}),
-      totalSlots: json['totalSlots'] ?? 0,
-      availableSlots: json['availableSlots'] ?? 0,
-      pricePerHour: (json['pricePerHour'] ?? 0).toDouble(),
+      totalSlots: parseInt(json['totalSlots'] ?? json['total_slots']),
+      availableSlots: parseInt(json['availableSlots'] ?? json['available_slots']),
+      pricePerHour: parseDouble(json['pricePerHour'] ?? json['price_per_hour']),
       images: List<String>.from(json['images'] ?? []),
       amenities: List<String>.from(json['amenities'] ?? []),
       operatingHours: OperatingHours.fromJson(json['operatingHours'] ?? {}),
       isActive: json['isActive'] ?? true,
       isVerified: json['isVerified'] ?? false,
       rating: Rating.fromJson(json['rating'] ?? {}),
-      distance: json['distance'] != null ? json['distance'].toDouble() : null,
+      distance: json['distance'] != null ? parseDouble(json['distance']) : null,
     );
   }
 

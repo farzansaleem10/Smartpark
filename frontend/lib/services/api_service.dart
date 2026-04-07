@@ -179,16 +179,44 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> createParking(Map<String, dynamic> data) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/parking'),
-      headers: await _getHeaders(),
-      body: json.encode(data),
-    );
+    final uri = Uri.parse('$baseUrl/parking');
+    final request = http.MultipartRequest('POST', uri);
+
+    // 1. Get auth headers, but REMOVE the JSON Content-Type. 
+    // MultipartRequest needs to set its own special "multipart/form-data" header.
+    final headers = await _getHeaders();
+    headers.remove('Content-Type'); 
+    request.headers.addAll(headers);
+
+    // 2. Loop through the data and attach everything to the Multipart form
+    for (var entry in data.entries) {
+      if (entry.key == 'licenseDocument' && entry.value != null && entry.value.toString().isNotEmpty) {
+        // ATTACH THE PHYSICAL FILE
+        request.files.add(
+          await http.MultipartFile.fromPath('licenseDocument', entry.value.toString()),
+        );
+      } else if (entry.value is Map) {
+        // FLATTEN NESTED OBJECTS (like 'address' and 'location')
+        // Multipart forms don't support nested JSON natively, so we convert them to 'address.street'
+        final map = entry.value as Map;
+        map.forEach((subKey, subValue) {
+          if (subValue != null) {
+            request.fields['${entry.key}.$subKey'] = subValue.toString();
+          }
+        });
+      } else if (entry.value != null) {
+        // ATTACH NORMAL TEXT FIELDS
+        request.fields[entry.key] = entry.value.toString();
+      }
+    }
+
+    // 3. Send the file and data to the server
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
 
     return _handleResponse(response);
   }
-
-  static Future<Map<String, dynamic>> updateParking(String id, Map<String, dynamic> data) async {
+static Future<Map<String, dynamic>> updateParking(String id, Map<String, dynamic> data) async {
     final response = await http.put(
       Uri.parse('$baseUrl/parking/$id'),
       headers: await _getHeaders(),
@@ -218,7 +246,6 @@ class ApiService {
 
     return _handleResponse(response);
   }
-
   // ================= BOOKINGS =================
 
   static Future<Map<String, dynamic>> createBooking({

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart'; 
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
@@ -18,7 +19,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   // Data States
   List<dynamic> _parkingRequests = [];
   Map<String, dynamic>? _analytics;
-  List<dynamic> _allUsers = []; // Combined list from API
+  List<dynamic> _allUsers = []; 
   
   bool _loadingRequests = false;
   bool _loadingAnalytics = false;
@@ -144,13 +145,45 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     }
   }
 
-  // --- UI Helpers ---
-
   void _showSnackBar(String message, Color color) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: color),
     );
+  }
+
+  // Helper to open documents safely
+  Future<void> _openDocument(String? docPath) async {
+    if (docPath == null || docPath.isEmpty) {
+      _showSnackBar("No document available", Colors.orange);
+      return;
+    }
+
+    String fullUrl;
+    if (docPath.startsWith('data:')) {
+      fullUrl = docPath;
+    } else if (docPath.startsWith('http')) {
+      fullUrl = docPath;
+    } else {
+      final cleanBase = ApiService.baseUrl.replaceAll('/api', '').replaceAll(RegExp(r'/$'), '');
+      final cleanDoc = docPath.startsWith('/') ? docPath : '/$docPath';
+      fullUrl = '$cleanBase$cleanDoc';
+    }
+
+    final Uri url = Uri.parse(fullUrl);
+    debugPrint("🔗 ATTEMPTING TO OPEN: $fullUrl");
+
+    try {
+      await launchUrl(
+        url,
+        mode: fullUrl.contains('10.0.2.2') 
+            ? LaunchMode.externalApplication 
+            : LaunchMode.platformDefault,
+      );
+    } catch (e) {
+      debugPrint("🚨 Launch Error: $e");
+      _showSnackBar("Could not open document.", Colors.red);
+    }
   }
 
   @override
@@ -184,7 +217,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // --- 1. FIXED ANALYTICS TAB ---
   Widget _buildAnalyticsTab() {
     if (_loadingAnalytics) return const Center(child: CircularProgressIndicator());
     if (_analytics == null) return _buildRetryButton(_loadAnalytics);
@@ -202,7 +234,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             const SizedBox(height: 24),
             const Text('Income per Parking Owner', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            // Updated mapping to ensure all owners from the list are rendered
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -228,15 +259,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // --- 2. UPDATED USER TAB (SEGMENTED) ---
- Widget _buildUsersManagementTab() {
-    // 1. Filter for Customers
+  Widget _buildUsersManagementTab() {
     final customers = _allUsers.where((u) {
       final role = (u['role'] ?? '').toString().toLowerCase().trim();
       return role == 'user' || role == 'customer';
     }).toList();
 
-    // 2. Filter for Owners 
     final owners = _allUsers.where((u) {
       final role = (u['role'] ?? '').toString().toLowerCase().trim();
       return role == 'owner';
@@ -267,6 +295,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       ),
     );
   }
+
   Widget _buildUserList(List<dynamic> users) {
     if (users.isEmpty) return const Center(child: Text("No accounts found in this category"));
     
@@ -275,7 +304,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       itemCount: users.length,
       itemBuilder: (context, index) {
         final user = users[index];
-        final bool isActive = user['isActive'] ?? true; // Adjust key based on your backend
+        final bool isActive = user['isActive'] ?? true; 
 
         return Card(
           child: ExpansionTile(
@@ -302,8 +331,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       if ((user['ownerParkings'] as List<dynamic>?)?.isEmpty ?? true)
                         const Text('No parking spaces found for this owner.'),
                       ...((user['ownerParkings'] as List<dynamic>?) ?? []).map((parking) {
-                        final docs = parking['documents'] as Map<String, dynamic>?;
-                        final additionalDocs = (docs?['additionalDocuments'] as List<dynamic>?)?.cast<String>() ?? [];
+                        final licenseDocPath = parking['licenseDocument']?.toString() ?? '';
 
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 8),
@@ -323,14 +351,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                 _buildDetailRow('Price/hr', '₹${parking['pricePerHour'] ?? 0}'),
                                 _buildDetailRow('Status', '${parking['approvalStatus'] ?? 'unknown'}'),
                                 _buildDetailRow('Verified', '${parking['isVerified'] == true ? 'Yes' : 'No'}'),
-                                if (docs != null) ...[
-                                  const SizedBox(height: 8),
-                                  const Text('Documents', style: TextStyle(fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 6),
-                                  
-                                  if (additionalDocs.isNotEmpty)
-                                    _buildDetailRow('Additional Docs', additionalDocs.join(', ')),
-                                ],
+                                
+                                const SizedBox(height: 12),
+                                // --- OWNER SECTION DOCUMENT BUTTON ---
+                                GestureDetector(
+                                  onTap: () => _openDocument(licenseDocPath),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: licenseDocPath.isNotEmpty ? Colors.blue.shade50 : Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: licenseDocPath.isNotEmpty ? Colors.blue.shade300 : Colors.grey.shade300,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          licenseDocPath.isNotEmpty ? Icons.insert_drive_file : Icons.description_outlined, 
+                                          size: 20, 
+                                          color: licenseDocPath.isNotEmpty ? Colors.blue : Colors.grey
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          licenseDocPath.isNotEmpty ? "View License Document" : "No Document",
+                                          style: TextStyle(
+                                            fontSize: 13, 
+                                            fontWeight: FontWeight.bold,
+                                            color: licenseDocPath.isNotEmpty ? Colors.blue.shade900 : Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+
                                 const SizedBox(height: 8),
                                 Align(
                                   alignment: Alignment.centerRight,
@@ -367,8 +422,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       },
     );
   }
-
-  // --- Existing Logic Retained ---
 
   Widget _buildSummaryGrid() {
     final totalIncome = _analytics!['totalIncome'] ?? 0.0;
@@ -427,34 +480,229 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
-  // Implementation of existing tabs (Parking Requests, Settings, Logout) remains similar to your original code...
-  // [Truncated for brevity, but keep your existing _buildParkingRequestsTab and _logout logic here]
-  
   Future<void> _loadParkingRequests() async {
-    // Placeholder: existing parking request logic should remain here.
+    setState(() {
+      _loadingRequests = true;
+      _requestsError = null;
+    });
+
+    try {
+      final response = await ApiService.getParkingRequests();
+      if (response['success'] && response['data']?['parkings'] != null) {
+        setState(() {
+          _parkingRequests = response['data']['parkings'];
+          _loadingRequests = false;
+        });
+      } else {
+        setState(() {
+          _requestsError = response['message'] ?? 'Failed to load requests';
+          _loadingRequests = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _requestsError = e.toString().replaceAll('Exception: ', '');
+        _loadingRequests = false;
+      });
+    }
   }
 
   Future<void> _approveParking(String id) async {
-    // Placeholder: existing approve logic should remain here.
+    try {
+      final response = await ApiService.approveParkingRequest(id);
+      if (response['success']) {
+        _showSnackBar('Parking approved successfully', Colors.green);
+        _loadParkingRequests(); 
+      } else {
+        _showSnackBar(response['message'] ?? 'Failed to approve', Colors.red);
+      }
+    } catch (e) {
+      _showSnackBar(e.toString(), Colors.red);
+    }
   }
 
   Future<void> _rejectParking(String id) async {
-    // Placeholder: existing reject logic should remain here.
+    final reasonController = TextEditingController();
+    
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reject Parking Request'),
+        content: TextField(
+          controller: reasonController,
+          decoration: const InputDecoration(
+            labelText: 'Reason for rejection (Required)',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 2,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              if (reasonController.text.trim().isEmpty) {
+                _showSnackBar('Please provide a reason', Colors.red);
+                return;
+              }
+              Navigator.pop(context); 
+              try {
+                final response = await ApiService.rejectParkingRequest(id, reason: reasonController.text.trim());
+                if (response['success']) {
+                  _showSnackBar('Parking rejected', Colors.orange);
+                  _loadParkingRequests(); 
+                } else {
+                  _showSnackBar(response['message'] ?? 'Failed to reject', Colors.red);
+                }
+              } catch (e) {
+                _showSnackBar(e.toString(), Colors.red);
+              }
+            },
+            child: const Text('Confirm Reject'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParkingRequestsTab() {
+    if (_loadingRequests) return const Center(child: CircularProgressIndicator());
+    if (_requestsError != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(_requestsError!, style: const TextStyle(color: Colors.red)),
+            const SizedBox(height: 16),
+            ElevatedButton(onPressed: _loadParkingRequests, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+
+    if (_parkingRequests.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inbox, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text("No parking requests found.", style: TextStyle(fontSize: 18, color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _parkingRequests.length,
+      itemBuilder: (context, index) {
+        final request = _parkingRequests[index];
+        final id = request['_id'] ?? '';
+        final name = request['name'] ?? 'Unknown Parking';
+        final status = request['approvalStatus'] ?? 'pending';
+        final type = request['type'] ?? 'Land';
+        final licenseDocPath = request['licenseDocument']?.toString() ?? '';
+
+        String ownerName = 'Unknown Owner';
+        if (request['owner'] != null && request['owner'] is Map) {
+          ownerName = request['owner']['name'] ?? 'Unknown Owner';
+        }
+
+        Color statusColor = status == 'approved' ? Colors.green : (status == 'rejected' ? Colors.red : Colors.orange);
+
+        return Card(
+          elevation: 3,
+          margin: const EdgeInsets.only(bottom: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(child: Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+                    Chip(
+                      label: Text(status.toString().toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 12)),
+                      backgroundColor: statusColor,
+                    ),
+                  ],
+                ),
+                const Divider(),
+                _buildRequestInfoRow(Icons.person, "Owner: $ownerName"),
+                _buildRequestInfoRow(Icons.category, "Type: $type"),
+                const SizedBox(height: 12),
+                
+                // --- REQUEST TAB DOCUMENT BUTTON ---
+                if (licenseDocPath.isNotEmpty)
+                  GestureDetector(
+                    onTap: () => _openDocument(licenseDocPath),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade300, width: 1.5),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.insert_drive_file, color: Colors.blue.shade700, size: 28),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text("Verification Document", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
+                                Text("Tap here to view file", style: TextStyle(fontSize: 12, color: Color(0xFF1976D2))),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.open_in_new, color: Colors.blue.shade700),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                    child: const Row(children: [Icon(Icons.warning_amber, color: Colors.grey), SizedBox(width: 8), Text("No document uploaded")]),
+                  ),
+                
+                if (status == 'pending') ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: OutlinedButton.icon(onPressed: () => _rejectParking(id), icon: const Icon(Icons.close, color: Colors.red), label: const Text('Reject', style: TextStyle(color: Colors.red)))),
+                      const SizedBox(width: 12),
+                      Expanded(child: ElevatedButton.icon(onPressed: () => _approveParking(id), icon: const Icon(Icons.check), label: const Text('Approve'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white))),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRequestInfoRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4.0),
+      child: Row(children: [Icon(icon, size: 16, color: Colors.grey), const SizedBox(width: 8), Text(text, style: const TextStyle(fontSize: 14))]),
+    );
   }
 
   Future<void> _logout() async {
     final auth = Provider.of<AuthService>(context, listen: false);
     await auth.logout();
-
     if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
-  }
-  
-  Widget _buildParkingRequestsTab() {
-    return const Center(child: Text("Requests Implementation"));
+    Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
   }
 
   Widget _buildSettingsTab() {
@@ -463,20 +711,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Settings',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
+          const Text('Settings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text('Logout'),
-              subtitle: const Text('Sign out from the admin dashboard'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _logout,
-            ),
-          ),
+          Card(child: ListTile(leading: const Icon(Icons.logout, color: Colors.redAccent), title: const Text('Logout'), subtitle: const Text('Sign out from the admin dashboard'), trailing: const Icon(Icons.chevron_right), onTap: _logout)),
         ],
       ),
     );

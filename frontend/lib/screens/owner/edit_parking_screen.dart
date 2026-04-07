@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../../models/parking.dart';
 import '../../services/api_service.dart';
@@ -21,6 +22,8 @@ class _EditParkingScreenState extends State<EditParkingScreen> {
   late TextEditingController _totalSlotsController;
   late TextEditingController _pricePerHourController;
 
+  String? _licenseDocumentPath;
+  String? _licenseDocumentName;
   bool _isLoading = false;
 
   @override
@@ -44,24 +47,62 @@ class _EditParkingScreenState extends State<EditParkingScreen> {
     super.dispose();
   }
 
-  Future<void> _submitForm() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  Future<void> _pickDocument() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      );
 
+      if (result != null) {
+        setState(() {
+          _licenseDocumentPath = result.files.single.path;
+          _licenseDocumentName = result.files.single.name;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to pick document'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _submitForm() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
+      final payload = <String, dynamic>{};
+
+      final name = _nameController.text.trim();
+      if (name.isNotEmpty) payload['name'] = name;
+
+      final description = _descriptionController.text.trim();
+      if (description.isNotEmpty) payload['description'] = description;
+
+      final totalSlotsText = _totalSlotsController.text.trim();
+      if (totalSlotsText.isNotEmpty) {
+        payload['totalSlots'] = int.tryParse(totalSlotsText) ?? widget.parking.totalSlots;
+      }
+
+      final priceText = _pricePerHourController.text.trim();
+      if (priceText.isNotEmpty) {
+        payload['pricePerHour'] = double.tryParse(priceText) ?? widget.parking.pricePerHour;
+      }
+
+      if (_licenseDocumentPath != null) {
+        payload['licenseDocument'] = _licenseDocumentPath;
+      }
+
       final response = await ApiService.updateParking(
         widget.parking.id,
-        {
-          'name': _nameController.text.trim(),
-          'description': _descriptionController.text.trim(),
-          'totalSlots': int.parse(_totalSlotsController.text),
-          'pricePerHour': double.parse(_pricePerHourController.text),
-        },
+        payload,
       );
 
       if (response['success']) {
@@ -118,15 +159,9 @@ class _EditParkingScreenState extends State<EditParkingScreen> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
-                  labelText: 'Parking Name *',
+                  labelText: 'Parking Name',
                   prefixIcon: Icon(Icons.local_parking),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter parking name';
-                  }
-                  return null;
-                },
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -141,38 +176,72 @@ class _EditParkingScreenState extends State<EditParkingScreen> {
               TextFormField(
                 controller: _totalSlotsController,
                 decoration: const InputDecoration(
-                  labelText: 'Total Slots *',
+                  labelText: 'Total Slots',
                   prefixIcon: Icon(Icons.numbers),
                 ),
                 keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter total slots';
-                  }
-                  if (int.tryParse(value) == null || int.parse(value) < 1) {
-                    return 'Must be at least 1';
-                  }
-                  return null;
-                },
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _pricePerHourController,
                 decoration: const InputDecoration(
-                  labelText: 'Price Per Hour (₹) *',
+                  labelText: 'Price Per Hour (₹)',
                   prefixIcon: Icon(Icons.attach_money),
                 ),
                 keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter price per hour';
-                  }
-                  if (double.tryParse(value) == null ||
-                      double.parse(value) < 0) {
-                    return 'Must be a valid positive number';
-                  }
-                  return null;
-                },
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Verification Document',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(
+                    color: _licenseDocumentPath == null
+                        ? Colors.grey.shade400
+                        : Colors.green,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ListTile(
+                  leading: Icon(
+                    _licenseDocumentPath == null
+                        ? Icons.upload_file
+                        : Icons.check_circle,
+                    color: _licenseDocumentPath == null
+                        ? Colors.grey
+                        : Colors.green,
+                  ),
+                  title: Text(
+                    _licenseDocumentName ?? 'Upload License / Ownership Proof',
+                    style: TextStyle(
+                      color: _licenseDocumentPath == null
+                          ? Colors.grey.shade700
+                          : Colors.black,
+                      fontWeight: _licenseDocumentPath == null
+                          ? FontWeight.normal
+                          : FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: const Text('PDF, JPG, or PNG formats'),
+                  trailing: _licenseDocumentPath != null
+                      ? IconButton(
+                          icon: const Icon(Icons.close, color: Colors.red),
+                          onPressed: () {
+                            setState(() {
+                              _licenseDocumentPath = null;
+                              _licenseDocumentName = null;
+                            });
+                          },
+                        )
+                      : const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: _pickDocument,
+                ),
               ),
               const SizedBox(height: 32),
               ElevatedButton(

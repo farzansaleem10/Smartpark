@@ -22,8 +22,11 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Serve uploaded documents as static files
+app.use('/uploads', express.static('uploads'));
 
 // Database connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/SmartPark';
@@ -33,10 +36,10 @@ mongoose.connect(MONGODB_URI, {
   useUnifiedTopology: true,
 })
 .then(() => {
-  console.log('✅ MongoDB connected successfully');
+  console.log(' MongoDB connected successfully');
 })
 .catch((error) => {
-  console.error('❌ MongoDB connection error:', error);
+  console.error(' MongoDB connection error:', error);
   process.exit(1);
 });
 
@@ -73,5 +76,5 @@ app.use((req, res) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, '0.0.0.0',() => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(` Server running on port ${PORT}`);
 });
