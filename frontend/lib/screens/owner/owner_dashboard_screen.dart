@@ -9,7 +9,6 @@ import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../auth/login_screen.dart';
 
-
 class OwnerDashboardScreen extends StatefulWidget {
   const OwnerDashboardScreen({super.key});
 
@@ -51,46 +50,42 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Owner Dashboard'),
-     actions: [
-  PopupMenuButton<String>(
-    onSelected: (value) async {
-      if (value == 'add') {
-        final result = await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const AddParkingScreen(),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'add') {
+                final result = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AddParkingScreen(),
+                  ),
+                );
+                if (result == true && mounted) {
+                  _loadData();
+                }
+              } else if (value == 'logout') {
+                final auth = Provider.of<AuthService>(context, listen: false);
+                await auth.logout();
+
+                if (mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'add',
+                child: Text('Add Parking Space'),
+              ),
+              PopupMenuItem(
+                value: 'logout',
+                child: Text('Logout'),
+              ),
+            ],
           ),
-        );
-        if (result == true && mounted) {
-          _loadData();
-        }
-      } 
-      else if (value == 'logout') {
-
-        final auth = Provider.of<AuthService>(context, listen: false);
-        await auth.logout();
-
-        if (mounted) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (route) => false,
-          );
-        }
-      }
-    },
-    itemBuilder: (context) => const [
-      PopupMenuItem(
-        value: 'add',
-        child: Text('Add Parking Space'),
-      ),
-      PopupMenuItem(
-        value: 'logout',
-        child: Text('Logout'),
-      ),
-    ],
-  ),
-],
-
-
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -101,6 +96,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // --- PARKINGS SECTION ---
               FutureBuilder<Map<String, dynamic>>(
                 future: _parkingsFuture,
                 builder: (context, snapshot) {
@@ -121,7 +117,7 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                   }
 
                   final data = snapshot.data;
-                  if (data == null || !data['success']) {
+                  if (data == null || data['success'] == false) {
                     return _ErrorWidget(
                       message: data?['message'] ?? 'Failed to load parkings',
                       onRetry: _loadData,
@@ -169,13 +165,15 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                                   );
                                   return;
                                 }
-                              Navigator.of(context).push(
+                                Navigator.of(context)
+                                    .push(
                                   MaterialPageRoute(
                                     builder: (_) => ParkingDetailsScreen(
                                       parkingId: parking.id,
                                     ),
                                   ),
-                                ).then((_) {
+                                )
+                                    .then((_) {
                                   // Refresh data when returning from details screen
                                   _loadData();
                                 });
@@ -187,6 +185,8 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 },
               ),
               const SizedBox(height: 32),
+              
+              // --- EARNINGS SECTION ---
               FutureBuilder<Map<String, dynamic>>(
                 future: _earningsFuture,
                 builder: (context, snapshot) {
@@ -216,15 +216,26 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                     );
                   }
 
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: Text(
+                        'Error loading earnings: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    );
+                  }
+
                   if (snapshot.hasData && snapshot.data != null) {
                     final data = snapshot.data!;
-                    if (data['success'] == true && data['data'] != null) {
-                      final earnings = data['data'];
-                      todayEarnings = (earnings['today'] ?? 0).toDouble();
-                      monthlyEarnings = (earnings['monthly'] ?? 0).toDouble();
-                      yearlyEarnings = (earnings['yearly'] ?? 0).toDouble();
-                      dailyEarnings = (earnings['dailyEarnings'] as List?) ?? [];
-                    }
+                    
+                    // Dig down safely whether response is { data: {...} } or just { ... }
+                    final earningsMap = (data['data'] is Map) ? data['data'] : data;
+                    
+                    todayEarnings = double.tryParse(earningsMap['today']?.toString() ?? '0') ?? 0.0;
+                    monthlyEarnings = double.tryParse(earningsMap['monthly']?.toString() ?? '0') ?? 0.0;
+                    yearlyEarnings = double.tryParse(earningsMap['yearly']?.toString() ?? '0') ?? 0.0;
+                    dailyEarnings = (earningsMap['dailyEarnings'] as List?) ?? [];
                   }
 
                   return Column(
@@ -281,19 +292,22 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                 },
               ),
               const SizedBox(height: 32),
+              
+              // --- BOOKINGS SECTION ---
               FutureBuilder<Map<String, dynamic>>(
                 future: _analyticsFuture,
                 builder: (context, snapshot) {
-                  List<dynamic> bookingsPerDay = [];
-                  List<dynamic> peakHours = [];
-                  int activeUsers = 0;
+                  int todayBookings = 0;
+                  int monthlyBookings = 0;
+                  int yearlyBookings = 0;
+                  List<dynamic> dailyBookings = [];
 
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Analytics',
+                          'Bookings',
                           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -309,53 +323,78 @@ class _OwnerDashboardScreenState extends State<OwnerDashboardScreen> {
                     );
                   }
 
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: Text(
+                        'Error loading bookings: ${snapshot.error}',
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    );
+                  }
+
                   if (snapshot.hasData && snapshot.data != null) {
                     final data = snapshot.data!;
-                    if (data['success'] == true && data['data'] != null) {
-                      final analytics = data['data'];
-                      bookingsPerDay = (analytics['bookingsPerDay'] as List?) ?? [];
-                      peakHours = (analytics['peakHours'] as List?) ?? [];
-                      activeUsers = analytics['activeUsers'] ?? 0;
-                    }
+                    
+                    // Dig down safely whether response is { data: {...} } or just { ... }
+                    final bookingsMap = (data['data'] is Map) ? data['data'] : data;
+                    
+                    todayBookings = int.tryParse(bookingsMap['today']?.toString() ?? '0') ?? 0;
+                    monthlyBookings = int.tryParse(bookingsMap['monthly']?.toString() ?? '0') ?? 0;
+                    yearlyBookings = int.tryParse(bookingsMap['yearly']?.toString() ?? '0') ?? 0;
+                    // Fallbacks for the chart list data keys
+                    dailyBookings = (bookingsMap['dailyBookings'] as List?) ?? 
+                                    (bookingsMap['bookingsPerDay'] as List?) ?? [];
                   }
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Analytics',
+                        'Bookings',
                         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
                       ),
                       const SizedBox(height: 16),
-                      _SummaryCard(
-                        title: 'Active Users',
-                        value: activeUsers.toString(),
-                        icon: Icons.people,
-                        color: Colors.purple,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _SummaryCard(
+                              title: 'Today Booked',
+                              value: todayBookings.toString(),
+                              icon: Icons.book_online,
+                              color: Colors.blue,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _SummaryCard(
+                              title: 'Monthly Booked',
+                              value: monthlyBookings.toString(),
+                              icon: Icons.calendar_month,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
                       ),
-                      if (bookingsPerDay.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _SummaryCard(
+                        title: 'Yearly Booked',
+                        value: yearlyBookings.toString(),
+                        icon: Icons.calendar_today,
+                        color: Colors.orange,
+                      ),
+                      if (dailyBookings.isNotEmpty) ...[
                         const SizedBox(height: 24),
                         Text(
-                          'Bookings Per Day (Last 7 Days)',
+                          'Daily Bookings (Last 7 Days)',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
                         ),
                         const SizedBox(height: 12),
-                        _BookingsChart(data: bookingsPerDay),
-                      ],
-                      if (peakHours.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        Text(
-                          'Peak Booking Hours',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                        const SizedBox(height: 12),
-                        _PeakHoursChart(data: peakHours),
+                        _BookingsChart(data: dailyBookings),
                       ],
                     ],
                   );
@@ -557,7 +596,7 @@ class _DailyEarningsChart extends StatelessWidget {
     if (data.isEmpty) return const SizedBox.shrink();
 
     final maxValue = data
-        .map((e) => (e['earnings'] ?? 0).toDouble())
+        .map((e) => double.tryParse(e['earnings']?.toString() ?? '0') ?? 0.0)
         .reduce((a, b) => a > b ? a : b);
 
     if (maxValue == 0) {
@@ -580,7 +619,7 @@ class _DailyEarningsChart extends StatelessWidget {
           children: [
             ...data.map((item) {
               final date = item['date'] ?? '';
-              final earnings = (item['earnings'] ?? 0).toDouble();
+              final earnings = double.tryParse(item['earnings']?.toString() ?? '0') ?? 0.0;
               final height = maxValue > 0 ? (earnings / maxValue) * 100 : 0.0;
 
               return Padding(
@@ -637,7 +676,7 @@ class _BookingsChart extends StatelessWidget {
     if (data.isEmpty) return const SizedBox.shrink();
 
     final maxValue = data
-        .map((e) => (e['count'] ?? 0) as int)
+        .map((e) => int.tryParse(e['count']?.toString() ?? '0') ?? 0)
         .reduce((a, b) => a > b ? a : b);
 
     if (maxValue == 0) {
@@ -660,7 +699,7 @@ class _BookingsChart extends StatelessWidget {
           children: [
             ...data.map((item) {
               final date = item['date'] ?? '';
-              final count = (item['count'] ?? 0) as int;
+              final count = int.tryParse(item['count']?.toString() ?? '0') ?? 0;
               final height = maxValue > 0 ? (count / maxValue) * 100 : 0.0;
 
               return Padding(
@@ -682,86 +721,6 @@ class _BookingsChart extends StatelessWidget {
                             height: 24,
                             decoration: BoxDecoration(
                               color: Colors.green,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '$count bookings',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PeakHoursChart extends StatelessWidget {
-  final List<dynamic> data;
-
-  const _PeakHoursChart({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    if (data.isEmpty) return const SizedBox.shrink();
-
-    final maxValue = data
-        .map((e) => (e['count'] ?? 0) as int)
-        .reduce((a, b) => a > b ? a : b);
-
-    if (maxValue == 0) {
-      return const Card(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('No peak hours data available'),
-        ),
-      );
-    }
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            ...data.map((item) {
-              final hour = item['hour'] ?? '';
-              final count = (item['count'] ?? 0) as int;
-              final height = maxValue > 0 ? (count / maxValue) * 100 : 0.0;
-
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 60,
-                      child: Text(
-                        hour,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Container(
-                            width: height,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: Colors.orange,
                               borderRadius: BorderRadius.circular(4),
                             ),
                           ),
@@ -866,5 +825,4 @@ class _EmptyParkingsWidget extends StatelessWidget {
       ),
     );
   }
-  
 }

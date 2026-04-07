@@ -327,9 +327,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                   const SizedBox(height: 8),
                                   const Text('Documents', style: TextStyle(fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 6),
-                                  _buildDetailRow('License', docs['license'] ?? 'N/A'),
-                                  _buildDetailRow('ID Proof', docs['idProof'] ?? 'N/A'),
-                                  _buildDetailRow('Ownership', docs['ownershipProof'] ?? 'N/A'),
+                                  
                                   if (additionalDocs.isNotEmpty)
                                     _buildDetailRow('Additional Docs', additionalDocs.join(', ')),
                                 ],

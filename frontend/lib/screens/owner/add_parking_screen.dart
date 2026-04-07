@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:file_picker/file_picker.dart'; // Added for document upload
 import '../../services/api_service.dart';
 
 class AddParkingScreen extends StatefulWidget {
@@ -21,6 +22,12 @@ class _AddParkingScreenState extends State<AddParkingScreen> {
   final _pricePerHourController = TextEditingController();
   final _latitudeController = TextEditingController();
   final _longitudeController = TextEditingController();
+
+  // Added variables for new features
+  String _selectedParkingType = 'Land';
+  final List<String> _parkingTypes = ['Land', 'Pay Parking', 'Home'];
+  String? _licenseDocumentPath;
+  String? _licenseDocumentName;
 
   bool _isLoading = false;
   Position? _currentPosition;
@@ -69,8 +76,47 @@ class _AddParkingScreenState extends State<AddParkingScreen> {
     }
   }
 
+  // Added method to pick documents
+  // Added method to pick documents
+  Future<void> _pickDocument() async {
+    try {
+      // FIX: Removed .platform here to support file_picker ^11.0.2
+      FilePickerResult? result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      );
+
+      if (result != null) {
+        setState(() {
+          _licenseDocumentPath = result.files.single.path;
+          _licenseDocumentName = result.files.single.name;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to pick document'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    // Added validation for document upload
+    if (_licenseDocumentPath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please upload a parking/land license document'),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
@@ -81,6 +127,7 @@ class _AddParkingScreenState extends State<AddParkingScreen> {
     try {
       final response = await ApiService.createParking({
         'name': _nameController.text.trim(),
+        'type': _selectedParkingType, // Added type to payload
         'description': _descriptionController.text.trim(),
         'address': {
           'street': _streetController.text.trim(),
@@ -95,6 +142,7 @@ class _AddParkingScreenState extends State<AddParkingScreen> {
         },
         'totalSlots': int.parse(_totalSlotsController.text),
         'pricePerHour': double.parse(_pricePerHourController.text),
+        'licenseDocument': _licenseDocumentPath, // Added document path to payload
       });
 
       if (response['success']) {
@@ -162,6 +210,30 @@ class _AddParkingScreenState extends State<AddParkingScreen> {
                 },
               ),
               const SizedBox(height: 16),
+              
+              // Added Dropdown for Parking Type
+              DropdownButtonFormField<String>(
+                value: _selectedParkingType,
+                decoration: const InputDecoration(
+                  labelText: 'Parking Type *',
+                  prefixIcon: Icon(Icons.category),
+                ),
+                items: _parkingTypes.map((String type) {
+                  return DropdownMenuItem(
+                    value: type,
+                    child: Text(type),
+                  );
+                }).toList(),
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _selectedParkingType = newValue;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(
@@ -325,6 +397,54 @@ class _AddParkingScreenState extends State<AddParkingScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 24),
+
+              // Added Document Upload Section
+              Text(
+                'Verification Document',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(
+                    color: _licenseDocumentPath == null 
+                        ? Colors.grey.shade400 
+                        : Colors.green,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ListTile(
+                  leading: Icon(
+                    _licenseDocumentPath == null ? Icons.upload_file : Icons.check_circle,
+                    color: _licenseDocumentPath == null ? Colors.grey : Colors.green,
+                  ),
+                  title: Text(
+                    _licenseDocumentName ?? 'Upload License / Ownership Proof *',
+                    style: TextStyle(
+                      color: _licenseDocumentPath == null ? Colors.grey.shade700 : Colors.black,
+                      fontWeight: _licenseDocumentPath == null ? FontWeight.normal : FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: const Text('PDF, JPG, or PNG formats'),
+                  trailing: _licenseDocumentPath != null
+                      ? IconButton(
+                          icon: const Icon(Icons.close, color: Colors.red),
+                          onPressed: () {
+                            setState(() {
+                              _licenseDocumentPath = null;
+                              _licenseDocumentName = null;
+                            });
+                          },
+                        )
+                      : const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: _pickDocument,
+                ),
+              ),
+
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _isLoading ? null : _submitForm,
