@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../models/booking.dart';
+import '../../services/api_service.dart';
 
 class QRCodeScreen extends StatelessWidget {
   final Booking booking;
@@ -9,6 +10,25 @@ class QRCodeScreen extends StatelessWidget {
     super.key,
     required this.booking,
   });
+
+  String? _getQrImageUrl() {
+    final qr = booking.qrCode;
+    if (qr == null || qr.trim().isEmpty) return null;
+
+    final trimmed = qr.trim();
+
+    // Data URI can be rendered directly by Image.network.
+    if (trimmed.startsWith('data:')) return trimmed;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+
+    final cleanBase = ApiService.baseUrl
+        .replaceAll('/api', '')
+        .replaceAll(RegExp(r'/$'), '');
+    final cleanPath = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+    return '$cleanBase$cleanPath';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,19 +45,44 @@ class QRCodeScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    if (booking.qrCode != null)
-                      Image.network(
-                        booking.qrCode!,
-                        width: 250,
-                        height: 250,
-                      )
-                    else
-                      QrImageView(
-                        data: booking.id,
-                        version: QrVersions.auto,
-                        size: 250,
-                        backgroundColor: Colors.white,
-                      ),
+                    Builder(
+                      builder: (context) {
+                        final qrImageUrl = _getQrImageUrl();
+
+                        if (qrImageUrl == null) {
+                          return QrImageView(
+                            data: booking.id,
+                            version: QrVersions.auto,
+                            size: 250,
+                            backgroundColor: Colors.white,
+                          );
+                        }
+
+                        return Image.network(
+                          qrImageUrl,
+                          width: 250,
+                          height: 250,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const SizedBox(
+                              width: 250,
+                              height: 250,
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            // If network image fails on mobile (URL/network issue), show generated QR.
+                            return QrImageView(
+                              data: booking.id,
+                              version: QrVersions.auto,
+                              size: 250,
+                              backgroundColor: Colors.white,
+                            );
+                          },
+                        );
+                      },
+                    ),
                     const SizedBox(height: 24),
                     Text(
                       'Booking ID: ${booking.id.substring(0, 8)}...',
