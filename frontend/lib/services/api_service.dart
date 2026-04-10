@@ -7,7 +7,7 @@ class ApiService {
   static const String baseUrl = 'http://localhost:5000/api' ;
   // static const String baseUrl =  'http://10.0.2.2:5000/api';emulator
   // For iOS simulator, use: http://localhost:5000/api
-  //  static const String baseUrl = 'http://10.18.157.100:5000/api';
+  //  static const String baseUrl = 'http://192.168.20.4:5000/api';
   
   // Get auth token from storage
   static Future<String?> _getToken() async {

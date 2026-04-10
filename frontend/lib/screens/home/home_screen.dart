@@ -14,6 +14,7 @@ import '../../services/api_service.dart';
 import '../../models/parking.dart';
 import '../auth/login_screen.dart';
 import 'parking_details_screen.dart';
+import '../navigation/navigation_screen.dart';
 import '../owner/owner_dashboard_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../bookings/booking_history_screen.dart';
@@ -74,8 +75,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (perm == LocationPermission.denied ||
         perm == LocationPermission.deniedForever) return;
 
-    final pos = await Geolocator.getCurrentPosition();
-    _updateUserPosition(pos);
+    final pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.best,
+    );
+    _onFirstPosition(pos);
 
     _posStream = Geolocator.getPositionStream(
       locationSettings:
@@ -83,10 +86,36 @@ class _HomeScreenState extends State<HomeScreen> {
     ).listen(_updateUserPosition);
   }
 
-  void _updateUserPosition(Position pos) {
+  bool _hasCenteredOnUser = false;
+
+  void _onFirstPosition(Position pos) {
+    final userLatLng = LatLng(pos.latitude, pos.longitude);
     setState(() {
       _userPosition = pos;
+      _mapCenter = userLatLng;
     });
+
+    // Move the map to the user's exact GPS location
+    try {
+      _mapController.move(userLatLng, 16);
+      _hasCenteredOnUser = true;
+    } catch (_) {
+      // MapController not ready yet, will be handled by _updateUserPosition
+    }
+  }
+
+  void _updateUserPosition(Position pos) {
+    final userLatLng = LatLng(pos.latitude, pos.longitude);
+    setState(() {
+      _userPosition = pos;
+      _mapCenter = userLatLng;
+    });
+
+    // If we haven't centered yet (e.g. controller wasn't ready), do it now
+    if (!_hasCenteredOnUser) {
+      _hasCenteredOnUser = true;
+      _mapController.move(userLatLng, 16);
+    }
   }
 
   Future<void> _loadParkings() async {
@@ -120,32 +149,31 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadParkings();
   }
 
-  Future<void> _getDirections(Parking parking) async {
-    // FIXED: Strictly using live GPS coordinates if available
-    // If GPS isn't ready, it uses the default point so it doesn't crash
-    final startLon = _userPosition?.longitude ?? _defaultCenter.longitude;
-    final startLat = _userPosition?.latitude ?? _defaultCenter.latitude;
+  void _getDirections(Parking parking) {
+    // If GPS isn't ready, use the default center so it doesn't crash
+    final pos = _userPosition;
+    final userPos = pos ?? Position(
+      latitude: _defaultCenter.latitude,
+      longitude: _defaultCenter.longitude,
+      timestamp: DateTime.now(),
+      accuracy: 0,
+      altitude: 0,
+      altitudeAccuracy: 0,
+      heading: 0,
+      headingAccuracy: 0,
+      speed: 0,
+      speedAccuracy: 0,
+    );
 
-    setState(() {
-      _selectedParking = parking;
-      _routePoints.clear();
-      _loadingRoute = true;
-    });
-
-    final url = Uri.parse(
-        'https://router.project-osrm.org/route/v1/driving/$startLon,$startLat;${parking.location.longitude},${parking.location.latitude}?overview=full&geometries=geojson');
-
-    final res = await http.get(url);
-    final data = jsonDecode(res.body);
-
-    if (data['routes'] != null && data['routes'].isNotEmpty) {
-      final coords = data['routes'][0]['geometry']['coordinates'];
-      setState(() {
-        _routePoints =
-            coords.map<LatLng>((c) => LatLng(c[1].toDouble(), c[0].toDouble())).toList();
-        _loadingRoute = false;
-      });
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NavigationScreen(
+          parking: parking,
+          userPosition: userPos,
+        ),
+      ),
+    );
   }
 
   void _showParkingSheet(Parking parking) {
