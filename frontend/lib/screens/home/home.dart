@@ -35,6 +35,9 @@ class _HomeState extends State<Home> {
   late List<_ParkingSpot> _allParkings;
   List<_ParkingSpot> _visibleParkings = [];
 
+  List<_ParkingSpot> get _approvedParkings =>
+      _allParkings.where((p) => p.isApproved).toList();
+
   @override
 void initState() {
   super.initState();
@@ -152,18 +155,21 @@ void initState() {
       name: 'Nearby Parking A',
       location: LatLng(base.latitude + 0.002, base.longitude + 0.001),
       available: true,
+      isApproved: true,
     ),
     _ParkingSpot(
       id: 'p2',
       name: 'Nearby Parking B',
       location: LatLng(base.latitude - 0.0015, base.longitude - 0.002),
       available: false,
+      isApproved: false,
     ),
     _ParkingSpot(
       id: 'p3',
       name: 'Nearby Parking C',
       location: LatLng(base.latitude + 0.003, base.longitude - 0.001),
       available: true,
+      isApproved: true,
     ),
   ];
 }
@@ -200,7 +206,7 @@ void initState() {
   void _filterParkingsAround(LatLng center) {
     const double radiusMeters = 2000;
     const distance = Distance();
-    final visible = _allParkings.where((p) {
+    final visible = _approvedParkings.where((p) {
       final meters = distance(center, p.location);
       return meters <= radiusMeters;
     }).toList();
@@ -449,7 +455,7 @@ void initState() {
                         ),
                       ),
                     ),
-                  ..._allParkings.map(
+                  ..._approvedParkings.map(
                     (p) => Marker(
                       point: p.location,
                       width: 44,
@@ -540,12 +546,14 @@ class _ParkingSpot {
   final String name;
   final LatLng location;
   final bool available;
+  final bool isApproved;
 
   const _ParkingSpot({
     required this.id,
     required this.name,
     required this.location,
     required this.available,
+    required this.isApproved,
   });
 }
 

@@ -10,6 +10,22 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticate);
 
+async function recalculateAvailableSlots(parkingId) {
+  const parking = await Parking.findById(parkingId);
+  if (!parking) return;
+
+  const now = new Date();
+  const occupiedCount = await Booking.countDocuments({
+    parking: parkingId,
+    status: { $in: ['confirmed', 'active'] },
+    startTime: { $lte: now },
+    endTime: { $gt: now },
+  });
+
+  parking.availableSlots = Math.max(0, parking.totalSlots - occupiedCount);
+  await parking.save();
+}
+
 /**
  * @route   POST /api/bookings/manual
  * @desc    Create a manual booking by owner
@@ -31,11 +47,50 @@ router.post('/manual', authenticate, async (req, res) => {
     const start = new Date(startTime);
     const end = new Date(endTime);
     const duration = (end - start) / (1000 * 60 * 60);
+    const slot = Number(slotNumber);
+
+    if (!slot || slot < 1 || slot > parking.totalSlots) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid slot number',
+      });
+    }
+
+    if (end <= start) {
+      return res.status(400).json({
+        success: false,
+        message: 'End time must be after start time',
+      });
+    }
+
+    const overlappingBookings = await Booking.find({
+      parking: parkingId,
+      status: { $in: ['confirmed', 'active'] },
+      startTime: { $lt: end },
+      endTime: { $gt: start },
+    });
+
+    if (overlappingBookings.length >= parking.totalSlots) {
+      return res.status(400).json({
+        success: false,
+        message: 'No available slots for the selected time',
+      });
+    }
+
+    const isSlotOccupied = overlappingBookings.some(
+      (b) => Number(b.slotNumber) === slot,
+    );
+    if (isSlotOccupied) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected slot is already booked for this time range',
+      });
+    }
 
     const booking = await Booking.create({
       user: req.user._id, // Owner is technically creating this
       parking: parkingId,
-      slotNumber,
+      slotNumber: slot,
       customerName,
       vehicleNumber,
       startTime: start,
@@ -46,6 +101,8 @@ router.post('/manual', authenticate, async (req, res) => {
       status: 'active',
       paymentMethod: 'cash',
     });
+
+    await recalculateAvailableSlots(parkingId);
 
     res.status(201).json({
       success: true,
@@ -102,6 +159,8 @@ router.get('/owner', authenticate, async (req, res) => {
       },
       { $set: { status: 'completed' } }
     );
+
+    await recalculateAvailableSlots(parkingId);
 
     const bookings = await Booking.find({
       parking: parkingId,
@@ -249,10 +308,7 @@ router.post('/', [
 
     booking.qrCode = qrCode;
     await booking.save();
-
-    // Update parking available slots
-    parking.availableSlots = Math.max(0, parking.availableSlots - 1);
-    await parking.save();
+    await recalculateAvailableSlots(parkingId);
 
     // Populate booking details
     await booking.populate('parking', 'name address location');
@@ -415,13 +471,7 @@ router.put('/:id/checkout', async (req, res) => {
     booking.checkOutTime = new Date();
     booking.paymentStatus = 'paid';
     await booking.save();
-
-    // Update parking available slots
-    const parking = await Parking.findById(booking.parking);
-    if (parking) {
-      parking.availableSlots = Math.min(parking.totalSlots, parking.availableSlots + 1);
-      await parking.save();
-    }
+    await recalculateAvailableSlots(booking.parking);
 
     res.json({
       success: true,
@@ -468,13 +518,7 @@ router.put('/:id/cancel', async (req, res) => {
 
     booking.status = 'cancelled';
     await booking.save();
-
-    // Update parking available slots
-    const parking = await Parking.findById(booking.parking);
-    if (parking) {
-      parking.availableSlots = Math.min(parking.totalSlots, parking.availableSlots + 1);
-      await parking.save();
-    }
+    await recalculateAvailableSlots(booking.parking);
 
     res.json({
       success: true,

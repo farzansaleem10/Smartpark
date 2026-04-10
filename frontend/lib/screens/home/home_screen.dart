@@ -125,6 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _allParkings = (res['data']['parkings'] as List)
             .map((e) => Parking.fromJson(e))
+            .where((p) => p.isVerified)
             .toList();
       });
     }

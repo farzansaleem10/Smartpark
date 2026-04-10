@@ -14,7 +14,22 @@ router.use(authenticate);
  */
 router.get('/parkings', async (req, res) => {
   try {
-    const parkings = await Parking.find({ owner: req.user._id }).sort({ createdAt: -1 });
+    let parkings = await Parking.find({ owner: req.user._id }).sort({ createdAt: -1 });
+
+    const now = new Date();
+    parkings = await Promise.all(
+      parkings.map(async (parking) => {
+        const overlappingBookings = await Booking.countDocuments({
+          parking: parking._id,
+          status: { $in: ['confirmed', 'active'] },
+          startTime: { $lte: now },
+          endTime: { $gt: now },
+        });
+        const parkingObj = parking.toObject();
+        parkingObj.availableSlots = Math.max(0, parkingObj.totalSlots - overlappingBookings);
+        return parkingObj;
+      }),
+    );
     
     res.json({
       success: true,

@@ -163,9 +163,8 @@ router.put('/parking-requests/:id/reject', [
  */
 router.get('/analytics', async (req, res) => {
   try {
-    const allBookings = await Booking.find({ 
-      status: { $in: ['completed', 'active'] },
-      paymentStatus: { $in: ['paid', 'pending'] }
+    const incomeBookings = await Booking.find({
+      status: { $nin: ['cancelled'] },
     })
       .populate({
         path: 'parking',
@@ -177,12 +176,13 @@ router.get('/analytics', async (req, res) => {
       })
       .populate('user', 'name email');
 
-    const totalIncome = allBookings.reduce((sum, booking) => {
-      return sum + (booking.totalPrice || 0);
+    const totalIncome = incomeBookings.reduce((sum, booking) => {
+      const price = Number(booking.totalPrice) || 0;
+      return sum + price;
     }, 0);
 
     const incomePerOwner = {};
-    allBookings.forEach(booking => {
+    incomeBookings.forEach(booking => {
       let ownerId = null;
       let ownerName = 'Unknown';
       
@@ -205,7 +205,8 @@ router.get('/analytics', async (req, res) => {
             bookingsCount: 0,
           };
         }
-        incomePerOwner[ownerId].totalIncome += booking.totalPrice || 0;
+        const price = Number(booking.totalPrice) || 0;
+        incomePerOwner[ownerId].totalIncome += price;
         incomePerOwner[ownerId].bookingsCount += 1;
       }
     });

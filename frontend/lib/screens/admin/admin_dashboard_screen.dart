@@ -246,7 +246,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     title: Text(owner['ownerName'] ?? 'Unknown Owner'),
                     subtitle: Text('${owner['bookingsCount'] ?? 0} bookings'),
                     trailing: Text(
-                      '₹${(owner['totalIncome'] ?? 0.0).toStringAsFixed(2)}',
+                      '₹${(double.tryParse(owner['totalIncome']?.toString() ?? '0') ?? 0.0).toStringAsFixed(2)}',
                       style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
                     ),
                   ),
@@ -451,7 +451,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   }
 
   Widget _buildSummaryGrid() {
-    final totalIncome = _analytics!['totalIncome'] ?? 0.0;
+    final totalIncome = double.tryParse(_analytics!['totalIncome']?.toString() ?? '0') ?? 0.0;
     final totalBookings = _analytics!['totalBookings'] ?? 0;
     final totalParkingSpaces = _analytics!['totalParkingSpaces'] ?? 0;
     final totalUsers = _analytics!['totalUsers'] ?? 0;

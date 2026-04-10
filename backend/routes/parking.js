@@ -122,9 +122,20 @@ router.get('/:id', async (req, res) => {
       });
     }
 
+    const now = new Date();
+    const overlappingBookings = await Booking.countDocuments({
+      parking: req.params.id,
+      status: { $in: ['confirmed', 'active'] },
+      startTime: { $lte: now },
+      endTime: { $gt: now },
+    });
+
+    const parkingObj = parking.toObject();
+    parkingObj.availableSlots = Math.max(0, parkingObj.totalSlots - overlappingBookings);
+
     res.json({
       success: true,
-      data: { parking },
+      data: { parking: parkingObj },
     });
   } catch (error) {
     res.status(500).json({

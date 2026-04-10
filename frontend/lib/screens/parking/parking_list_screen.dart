@@ -47,6 +47,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
         setState(() {
           _parkings = (response['data']['parkings'] as List)
               .map((p) => Parking.fromJson(p))
+              .where((p) => p.isVerified)
               .toList();
           _isLoading = false;
         });
