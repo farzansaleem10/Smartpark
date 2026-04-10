@@ -449,7 +449,7 @@ void initState() {
                         ),
                       ),
                     ),
-                  ..._visibleParkings.map(
+                  ..._allParkings.map(
                     (p) => Marker(
                       point: p.location,
                       width: 44,

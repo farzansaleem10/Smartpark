@@ -35,13 +35,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Position? _userPosition;
   StreamSubscription<Position>? _posStream;
 
-  List<Parking> _parkings = [];
+  List<Parking> _allParkings = [];
   Parking? _selectedParking;
 
   List<LatLng> _routePoints = [];
   bool _loadingRoute = false;
 
   LatLng _mapCenter = _defaultCenter;
+  static const double _listRadiusMeters = 5000;
+
+  List<Parking> get _nearbyParkings {
+    const distance = Distance();
+    return _allParkings.where((p) {
+      final meters = distance(
+        _mapCenter,
+        LatLng(p.location.latitude, p.location.longitude),
+      );
+      return meters <= _listRadiusMeters;
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -78,15 +90,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadParkings() async {
-    final res = await ApiService.getParkings(
-      latitude: _mapCenter.latitude,
-      longitude: _mapCenter.longitude,
-      radius: 5000,
-    );
+    final res = await ApiService.getParkings();
 
     if (res['success']) {
       setState(() {
-        _parkings = (res['data']['parkings'] as List)
+        _allParkings = (res['data']['parkings'] as List)
             .map((e) => Parking.fromJson(e))
             .toList();
       });
@@ -283,7 +291,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: const Icon(Icons.circle, color: Colors.blue, size: 18),
                     ),
 
-                  ..._parkings.map((p) {
+                  ..._allParkings.map((p) {
                     return Marker(
                       point: LatLng(p.location.latitude, p.location.longitude),
                       width: 50,
@@ -356,9 +364,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       Expanded(
                         child: ListView.builder(
                           controller: scrollController,
-                          itemCount: _parkings.length,
+                          itemCount: _nearbyParkings.length,
                           itemBuilder: (_, i) {
-                            final p = _parkings[i];
+                            final p = _nearbyParkings[i];
                             return ListTile(
                               title: Text(p.name),
                               subtitle: Text(

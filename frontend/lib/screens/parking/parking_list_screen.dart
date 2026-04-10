@@ -40,7 +40,7 @@ class _ParkingListScreenState extends State<ParkingListScreen> {
         search: widget.searchQuery,
         latitude: widget.currentPosition?.latitude,
         longitude: widget.currentPosition?.longitude,
-        radius: 10000,
+        radius: 5000,
       );
 
       if (response['success'] && response['data']?['parkings'] != null) {
