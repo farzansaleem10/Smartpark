@@ -357,4 +357,39 @@ router.get('/users/:id/bookings', async (req, res) => {
   }
 });
 
+/**
+ * @route   PATCH /api/admin/users/:id/status
+ * @desc    Activate or deactivate a user account
+ * @access  Private/Admin
+ */
+router.patch('/users/:id/status', async (req, res) => {
+  try {
+    const { isActive } = req.body;
+
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    user.isActive = isActive;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: `User account ${isActive ? 'activated' : 'deactivated'} successfully`,
+      data: { user },
+    });
+  } catch (error) {
+    console.error('Update user status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+});
+
 module.exports = router;

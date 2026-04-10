@@ -312,7 +312,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               backgroundColor: isActive ? Colors.blue : Colors.grey,
               child: Text(user['name']?[0] ?? 'U'),
             ),
-            title: Text(user['name'] ?? 'Unknown'),
+            title: Row(
+              children: [
+                Expanded(child: Text(user['name'] ?? 'Unknown')),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isActive ? Colors.green.shade50 : Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isActive ? Colors.green : Colors.red,
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    isActive ? 'Active' : 'Deactivated',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isActive ? Colors.green.shade700 : Colors.red.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             subtitle: Text(user['email'] ?? ''),
             children: [
               Padding(
@@ -405,11 +428,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        TextButton.icon(
+                        ElevatedButton.icon(
                           onPressed: () => _toggleUserStatus(user['_id'], isActive),
-                          icon: Icon(isActive ? Icons.block : Icons.check_circle, color: isActive ? Colors.red : Colors.green),
-                          label: Text(isActive ? 'Deactivate Credential' : 'Activate Account', 
-                            style: TextStyle(color: isActive ? Colors.red : Colors.green)),
+                          icon: Icon(isActive ? Icons.block : Icons.check_circle),
+                          label: Text(isActive ? 'Deactivate Credential' : 'Activate Account'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isActive ? Colors.red : Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          ),
                         ),
                       ],
                     )

@@ -43,6 +43,14 @@ const authenticate = async (req, res, next) => {
       });
     }
 
+    // Block deactivated users from accessing the API
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact the administrator.',
+      });
+    }
+
     // Attach user to request
     req.user = user;
     next();

@@ -172,6 +172,14 @@ router.post('/login', [
       });
     }
 
+    // Check if account is deactivated by admin
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact the administrator.',
+      });
+    }
+
     // Generate token
     const token = generateToken(user._id);
 
