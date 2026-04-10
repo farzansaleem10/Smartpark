@@ -14,6 +14,7 @@ class Parking {
   final bool isVerified;
   final Rating rating;
   final double? distance; // Distance in km (calculated on frontend)
+  final String? licenseDocument;
 
   Parking({
     required this.id,
@@ -31,6 +32,7 @@ class Parking {
     required this.isVerified,
     required this.rating,
     this.distance,
+    this.licenseDocument,
   });
 
   factory Parking.fromJson(Map<String, dynamic> json) {
@@ -66,6 +68,7 @@ class Parking {
       isVerified: json['isVerified'] ?? false,
       rating: Rating.fromJson(json['rating'] ?? {}),
       distance: json['distance'] != null ? parseDouble(json['distance']) : null,
+      licenseDocument: json['licenseDocument'],
     );
   }
 
@@ -85,6 +88,7 @@ class Parking {
       'isActive': isActive,
       'isVerified': isVerified,
       'rating': rating.toJson(),
+      'licenseDocument': licenseDocument,
     };
   }
 }

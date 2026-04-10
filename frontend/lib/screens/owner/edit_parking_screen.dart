@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/parking.dart';
 import '../../services/api_service.dart';
 
@@ -24,6 +25,8 @@ class _EditParkingScreenState extends State<EditParkingScreen> {
 
   String? _licenseDocumentPath;
   String? _licenseDocumentName;
+  String? _previousLicenseDocument;
+  String? _previousDocumentName;
   bool _isLoading = false;
 
   @override
@@ -36,6 +39,18 @@ class _EditParkingScreenState extends State<EditParkingScreen> {
         TextEditingController(text: widget.parking.totalSlots.toString());
     _pricePerHourController =
         TextEditingController(text: widget.parking.pricePerHour.toString());
+    
+    // Load previous document if exists
+    if (widget.parking.licenseDocument != null && 
+        widget.parking.licenseDocument!.isNotEmpty) {
+      _previousLicenseDocument = widget.parking.licenseDocument;
+      _previousDocumentName = _extractFileName(widget.parking.licenseDocument!);
+    }
+  }
+
+  String _extractFileName(String path) {
+    if (path.isEmpty) return 'Unknown document';
+    return path.split('/').last.split('\\').last;
   }
 
   @override
@@ -72,6 +87,68 @@ class _EditParkingScreenState extends State<EditParkingScreen> {
     }
   }
 
+  void _clearNewDocument() {
+    setState(() {
+      _licenseDocumentPath = null;
+      _licenseDocumentName = null;
+    });
+  }
+
+  void _clearPreviousDocument() {
+    setState(() {
+      _previousLicenseDocument = null;
+      _previousDocumentName = null;
+    });
+  }
+
+  // Helper to open documents safely - same as admin dashboard
+  Future<void> _openDocument(String? docPath) async {
+    if (docPath == null || docPath.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No document available"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    String fullUrl;
+    if (docPath.startsWith('data:')) {
+      fullUrl = docPath;
+    } else if (docPath.startsWith('http')) {
+      fullUrl = docPath;
+    } else {
+      final cleanBase = ApiService.baseUrl
+          .replaceAll('/api', '')
+          .replaceAll(RegExp(r'/$'), '');
+      final cleanDoc = docPath.startsWith('/') ? docPath : '/$docPath';
+      fullUrl = '$cleanBase$cleanDoc';
+    }
+
+    final Uri url = Uri.parse(fullUrl);
+    debugPrint("🔗 ATTEMPTING TO OPEN: $fullUrl");
+
+    try {
+      await launchUrl(
+        url,
+        mode: fullUrl.contains('10.0.2.2')
+            ? LaunchMode.externalApplication
+            : LaunchMode.platformDefault,
+      );
+    } catch (e) {
+      debugPrint("🚨 Launch Error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Could not open document."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _submitForm() async {
     setState(() {
       _isLoading = true;
@@ -96,8 +173,11 @@ class _EditParkingScreenState extends State<EditParkingScreen> {
         payload['pricePerHour'] = double.tryParse(priceText) ?? widget.parking.pricePerHour;
       }
 
+      // Include new document if selected, otherwise keep previous if not cleared
       if (_licenseDocumentPath != null) {
         payload['licenseDocument'] = _licenseDocumentPath;
+      } else if (_previousLicenseDocument != null) {
+        payload['licenseDocument'] = _previousLicenseDocument;
       }
 
       final response = await ApiService.updateParking(
@@ -197,50 +277,143 @@ class _EditParkingScreenState extends State<EditParkingScreen> {
                       fontWeight: FontWeight.bold,
                     ),
               ),
-              const SizedBox(height: 8),
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  side: BorderSide(
-                    color: _licenseDocumentPath == null
-                        ? Colors.grey.shade400
-                        : Colors.green,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: ListTile(
-                  leading: Icon(
-                    _licenseDocumentPath == null
-                        ? Icons.upload_file
-                        : Icons.check_circle,
-                    color: _licenseDocumentPath == null
-                        ? Colors.grey
-                        : Colors.green,
-                  ),
-                  title: Text(
-                    _licenseDocumentName ?? 'Upload License / Ownership Proof',
-                    style: TextStyle(
-                      color: _licenseDocumentPath == null
-                          ? Colors.grey.shade700
-                          : Colors.black,
-                      fontWeight: _licenseDocumentPath == null
-                          ? FontWeight.normal
-                          : FontWeight.bold,
+              const SizedBox(height: 12),
+              // Previously Uploaded Document Section
+              if (_previousLicenseDocument != null && _previousDocumentName != null)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _openDocument(_previousLicenseDocument),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          border: Border.all(color: Colors.blue.shade200),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  Icon(Icons.insert_drive_file, 
+                                    color: Colors.blue.shade600, size: 20),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'View License Document',
+                                      style: TextStyle(
+                                        color: Colors.blue.shade800,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.delete_outline, 
+                                color: Colors.red.shade600, size: 20),
+                              onPressed: _clearPreviousDocument,
+                              tooltip: 'Remove this document',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              // New Document Upload Section
+              if (_previousLicenseDocument == null || _previousDocumentName == null)
+                Text(
+                  'Upload Document',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              if (_previousLicenseDocument != null && _previousDocumentName != null)
+                Text(
+                  'Replace Document',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _pickDocument,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _licenseDocumentPath == null 
+                        ? Colors.grey.shade50 
+                        : Colors.green.shade50,
+                    border: Border.all(
+                      color: _licenseDocumentPath == null
+                          ? Colors.grey.shade300
+                          : Colors.green.shade300,
+                      width: _licenseDocumentPath == null ? 1 : 2,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  subtitle: const Text('PDF, JPG, or PNG formats'),
-                  trailing: _licenseDocumentPath != null
-                      ? IconButton(
-                          icon: const Icon(Icons.close, color: Colors.red),
-                          onPressed: () {
-                            setState(() {
-                              _licenseDocumentPath = null;
-                              _licenseDocumentName = null;
-                            });
-                          },
-                        )
-                      : const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: _pickDocument,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Icon(
+                              _licenseDocumentPath == null
+                                  ? Icons.cloud_upload_outlined
+                                  : Icons.check_circle,
+                              color: _licenseDocumentPath == null
+                                  ? Colors.grey.shade600
+                                  : Colors.green.shade600,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _licenseDocumentName ?? 'Select PDF, JPG, or PNG',
+                                style: TextStyle(
+                                  color: _licenseDocumentPath == null
+                                      ? Colors.grey.shade700
+                                      : Colors.green.shade800,
+                                  fontWeight: _licenseDocumentPath == null
+                                      ? FontWeight.normal
+                                      : FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_licenseDocumentPath != null)
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.red, size: 20),
+                          onPressed: _clearNewDocument,
+                          tooltip: 'Remove selected document',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 32),
