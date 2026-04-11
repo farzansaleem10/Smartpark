@@ -336,7 +336,30 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ],
             ),
-            subtitle: Text(user['email'] ?? ''),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(user['email'] ?? ''),
+                if ((user['role'] ?? '').toString().toLowerCase().trim() == 'owner')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.local_parking, size: 14, color: Colors.blue),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Total Parking Spaces: ${(user['ownerParkings'] as List?)?.length ?? 0}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
             children: [
               Padding(
                 padding: const EdgeInsets.all(16.0),

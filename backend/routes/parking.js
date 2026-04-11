@@ -56,7 +56,13 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    let parkings = await Parking.find(query).populate('owner', 'name email');
+    let parkings = await Parking.find(query).populate({
+      path: 'owner',
+      select: 'name email isActive',
+    });
+
+    // Filter out parkings where owner is deactivated
+    parkings = parkings.filter(p => !p.owner || p.owner.isActive !== false);
 
     // Calculate real-time available slots for each parking (always fresh, ignore stored value)
     const now = new Date();
@@ -113,12 +119,20 @@ router.get('/', async (req, res) => {
  */
 router.get('/:id', async (req, res) => {
   try {
-    const parking = await Parking.findById(req.params.id).populate('owner', 'name email phone');
+    const parking = await Parking.findById(req.params.id).populate('owner', 'name email phone isActive');
 
     if (!parking) {
       return res.status(404).json({
         success: false,
         message: 'Parking space not found',
+      });
+    }
+
+    // Check if owner is active
+    if (parking.owner && parking.owner.isActive === false && (!req.user || req.user.role !== 'admin')) {
+      return res.status(403).json({
+        success: false,
+        message: 'This parking is currently unavailable because the owner account is inactive',
       });
     }
 
@@ -152,12 +166,19 @@ router.get('/:id', async (req, res) => {
  */
 router.get('/:id/details', async (req, res) => {
   try {
-    const parking = await Parking.findById(req.params.id);
+    const parking = await Parking.findById(req.params.id).populate('owner', 'isActive');
 
     if (!parking) {
       return res.status(404).json({
         success: false,
         message: 'Parking space not found',
+      });
+    }
+
+    if (parking.owner && parking.owner.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Parking details unavailable',
       });
     }
 
