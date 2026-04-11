@@ -4,10 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
   // Change this to your backend URL
-  // static const String baseUrl = 'http://localhost:5000/api' ;
+  static const String baseUrl = 'http://localhost:5000/api' ;
   // static const String baseUrl =  'http://10.0.2.2:5000/api';emulator
   // For iOS simulator, use: http://localhost:5000/api
-   static const String baseUrl = 'http://192.168.20.11:5000/api';
+  //  static const String baseUrl = 'http://192.168.20.11:5000/api';
   
   // Get auth token from storage
   static Future<String?> _getToken() async {
@@ -252,17 +252,28 @@ static Future<Map<String, dynamic>> updateParking(String id, Map<String, dynamic
     required String parkingId,
     required DateTime startTime,
     required DateTime endTime,
+    String? customerName,
+    required String vehicleNumber,
+    String? phoneNumber,
+    required int slotNumber,
     String? paymentMethod,
   }) async {
+    final Map<String, dynamic> body = {
+      'parking': parkingId,
+      'startTime': startTime.toIso8601String(),
+      'endTime': endTime.toIso8601String(),
+      'paymentMethod': paymentMethod ?? 'cash',
+      'vehicleNumber': vehicleNumber,
+      'slotNumber': slotNumber,
+    };
+
+    if (customerName != null) body['customerName'] = customerName;
+    if (phoneNumber != null) body['phoneNumber'] = phoneNumber;
+
     final response = await http.post(
       Uri.parse('$baseUrl/bookings'),
       headers: await _getHeaders(),
-      body: json.encode({
-        'parking': parkingId,
-        'startTime': startTime.toIso8601String(),
-        'endTime': endTime.toIso8601String(),
-        'paymentMethod': paymentMethod ?? 'cash',
-      }),
+      body: json.encode(body),
     );
 
     return _handleResponse(response);
@@ -316,6 +327,7 @@ static Future<Map<String, dynamic>> updateParking(String id, Map<String, dynamic
     required int slotNumber,
     required String customerName,
     required String vehicleNumber,
+    required String phoneNumber,
     required String startTime,
     required String endTime,
   }) async {
@@ -328,6 +340,7 @@ static Future<Map<String, dynamic>> updateParking(String id, Map<String, dynamic
           'slotNumber': slotNumber,
           'customerName': customerName,
           'vehicleNumber': vehicleNumber,
+          'phoneNumber': phoneNumber,
           'startTime': startTime,
           'endTime': endTime,
         }),
@@ -338,6 +351,10 @@ static Future<Map<String, dynamic>> updateParking(String id, Map<String, dynamic
           parkingId: parkingId,
           startTime: DateTime.parse(startTime),
           endTime: DateTime.parse(endTime),
+          customerName: customerName,
+          vehicleNumber: vehicleNumber,
+          phoneNumber: phoneNumber,
+          slotNumber: slotNumber,
           paymentMethod: 'cash',
         );
 
@@ -351,6 +368,10 @@ static Future<Map<String, dynamic>> updateParking(String id, Map<String, dynamic
           parkingId: parkingId,
           startTime: DateTime.parse(startTime),
           endTime: DateTime.parse(endTime),
+          customerName: customerName,
+          vehicleNumber: vehicleNumber,
+          phoneNumber: phoneNumber,
+          slotNumber: slotNumber,
           paymentMethod: 'cash',
         );
 

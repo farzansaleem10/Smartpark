@@ -12,6 +12,9 @@ class Booking {
   final String? qrCode;
   final DateTime? checkInTime;
   final DateTime? checkOutTime;
+  final String customerName;
+  final String vehicleNumber;
+  final String phoneNumber;
   final String paymentStatus;
   final String paymentMethod;
 
@@ -29,6 +32,9 @@ class Booking {
     this.qrCode,
     this.checkInTime,
     this.checkOutTime,
+    required this.customerName,
+    required this.vehicleNumber,
+    required this.phoneNumber,
     required this.paymentStatus,
     required this.paymentMethod,
   });
@@ -62,6 +68,9 @@ class Booking {
       checkOutTime: json['checkOutTime'] != null 
           ? DateTime.parse(json['checkOutTime']) 
           : null,
+      customerName: json['customerName'] ?? '',
+      vehicleNumber: json['vehicleNumber'] ?? '',
+      phoneNumber: json['phoneNumber'] ?? '',
       paymentStatus: json['paymentStatus'] ?? 'pending',
       paymentMethod: json['paymentMethod'] ?? 'cash',
     );
@@ -73,6 +82,9 @@ class Booking {
       'startTime': startTime.toIso8601String(),
       'endTime': endTime.toIso8601String(),
       'paymentMethod': paymentMethod,
+      'customerName': customerName,
+      'vehicleNumber': vehicleNumber,
+      'phoneNumber': phoneNumber,
     };
   }
 }

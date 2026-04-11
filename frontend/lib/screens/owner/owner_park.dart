@@ -173,277 +173,344 @@ class _ParkingDetailsScreenState extends State<ParkingDetailsScreen> {
   }
 
   Future<void> _showManualBookingDialog() async {
-    final slotNumberController = TextEditingController();
     final customerNameController = TextEditingController();
     final vehicleNumberController = TextEditingController();
+    final phoneNumberController = TextEditingController();
 
-    late DateTime selectedStartTime;
-    late DateTime selectedEndTime;
+    DateTime selectedStartTime = DateTime.now();
+    DateTime selectedEndTime = selectedStartTime.add(const Duration(hours: 1));
 
-    selectedStartTime = DateTime.now();
-    selectedEndTime = selectedStartTime.add(const Duration(hours: 1));
+    List<int> availableSlotNumbers = [];
+    int? selectedSlot;
+    bool isCheckingAvailability = false;
 
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Book Slot Manually'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: slotNumberController,
-                  decoration: const InputDecoration(
-                    labelText: 'Slot Number',
+        builder: (context, setDialogState) {
+          Future<void> checkLocalAvailability() async {
+            setDialogState(() => isCheckingAvailability = true);
+            try {
+              final response = await ApiService.checkAvailability(
+                parkingId: widget.parkingId,
+                startTime: selectedStartTime,
+                endTime: selectedEndTime,
+              );
+              if (response['success'] && response['data'] != null) {
+                setDialogState(() {
+                  availableSlotNumbers = List<int>.from(
+                      response['data']['availableSlotNumbers'] ?? []);
+                  if (selectedSlot != null &&
+                      !availableSlotNumbers.contains(selectedSlot)) {
+                    selectedSlot = null;
+                  }
+                  if (selectedSlot == null && availableSlotNumbers.isNotEmpty) {
+                    selectedSlot = availableSlotNumbers.first;
+                  }
+                });
+              }
+            } catch (e) {
+              print('Availability check error: $e');
+            } finally {
+              setDialogState(() => isCheckingAvailability = false);
+            }
+          }
+
+          // Initial check
+          if (!isCheckingAvailability && availableSlotNumbers.isEmpty) {
+            checkLocalAvailability();
+          }
+
+          return AlertDialog(
+            title: const Text('Book Slot Manually'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: customerNameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Customer Name',
+                      prefixIcon: Icon(Icons.person),
+                    ),
                   ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: customerNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Customer Name',
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: vehicleNumberController,
+                    decoration: const InputDecoration(
+                      labelText: 'Vehicle Number',
+                      prefixIcon: Icon(Icons.directions_car),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: vehicleNumberController,
-                  decoration: const InputDecoration(
-                    labelText: 'Vehicle Number',
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: phoneNumberController,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number',
+                      prefixIcon: Icon(Icons.phone),
+                    ),
+                    keyboardType: TextInputType.phone,
                   ),
-                ),
-                const SizedBox(height: 20),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Booking Start Time (IST)',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                  const SizedBox(height: 20),
+                  DropdownButtonFormField<int>(
+                    value: selectedSlot,
+                    decoration: const InputDecoration(
+                      labelText: 'Select Slot',
+                      prefixIcon: Icon(Icons.grid_view),
+                    ),
+                    items: availableSlotNumbers.map((slot) {
+                      return DropdownMenuItem<int>(
+                        value: slot,
+                        child: Text('Slot #$slot'),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedSlot = value;
+                      });
+                    },
+                    hint: Text(isCheckingAvailability
+                        ? 'Checking...'
+                        : 'No slots available'),
+                  ),
+                  const SizedBox(height: 20),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Booking Start Time (IST)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _formatTimeIST(selectedStartTime),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _formatTimeIST(selectedStartTime),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
                               ),
-                            ),
-                            ElevatedButton.icon(
-                              onPressed: () async {
-                                final pickedDate = await showDatePicker(
-                                  context: context,
-                                  initialDate: selectedStartTime,
-                                  firstDate: DateTime.now(),
-                                  lastDate: DateTime.now().add(
-                                    const Duration(days: 30),
-                                  ),
-                                );
-                                if (pickedDate != null) {
-                                  final pickedTime = await showTimePicker(
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  final pickedDate = await showDatePicker(
                                     context: context,
-                                    initialTime: TimeOfDay.fromDateTime(
-                                      selectedStartTime,
+                                    initialDate: selectedStartTime,
+                                    firstDate: DateTime.now(),
+                                    lastDate: DateTime.now().add(
+                                      const Duration(days: 30),
                                     ),
                                   );
-                                  if (pickedTime != null) {
-                                    setDialogState(() {
-                                      selectedStartTime = DateTime(
+                                  if (pickedDate != null) {
+                                    final pickedTime = await showTimePicker(
+                                      context: context,
+                                      initialTime: TimeOfDay.fromDateTime(
+                                        selectedStartTime,
+                                      ),
+                                    );
+                                    if (pickedTime != null) {
+                                      setDialogState(() {
+                                        selectedStartTime = DateTime(
+                                          pickedDate.year,
+                                          pickedDate.month,
+                                          pickedDate.day,
+                                          pickedTime.hour,
+                                          pickedTime.minute,
+                                        );
+                                        if (selectedEndTime
+                                            .isBefore(selectedStartTime)) {
+                                          selectedEndTime = selectedStartTime
+                                              .add(const Duration(hours: 1));
+                                        }
+                                      });
+                                      checkLocalAvailability();
+                                    }
+                                  }
+                                },
+                                icon: const Icon(Icons.access_time),
+                                label: const Text('Select'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Booking End Time (IST)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _formatTimeIST(selectedEndTime),
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  final pickedDate = await showDatePicker(
+                                    context: context,
+                                    initialDate: selectedEndTime,
+                                    firstDate: selectedStartTime,
+                                    lastDate: DateTime.now().add(
+                                      const Duration(days: 30),
+                                    ),
+                                  );
+                                  if (pickedDate != null) {
+                                    final pickedTime = await showTimePicker(
+                                      context: context,
+                                      initialTime: TimeOfDay.fromDateTime(
+                                          selectedEndTime),
+                                    );
+                                    if (pickedTime != null) {
+                                      final newEndTime = DateTime(
                                         pickedDate.year,
                                         pickedDate.month,
                                         pickedDate.day,
                                         pickedTime.hour,
                                         pickedTime.minute,
                                       );
-                                      if (selectedEndTime
-                                          .isBefore(selectedStartTime)) {
-                                        selectedEndTime = selectedStartTime
-                                            .add(const Duration(hours: 1));
-                                      }
-                                    });
-                                  }
-                                }
-                              },
-                              icon: const Icon(Icons.access_time),
-                              label: const Text('Select'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Booking End Time (IST)',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _formatTimeIST(selectedEndTime),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            ElevatedButton.icon(
-                              onPressed: () async {
-                                final pickedDate = await showDatePicker(
-                                  context: context,
-                                  initialDate: selectedEndTime,
-                                  firstDate: selectedStartTime,
-                                  lastDate: DateTime.now().add(
-                                    const Duration(days: 30),
-                                  ),
-                                );
-                                if (pickedDate != null) {
-                                  final pickedTime = await showTimePicker(
-                                    context: context,
-                                    initialTime:
-                                        TimeOfDay.fromDateTime(selectedEndTime),
-                                  );
-                                  if (pickedTime != null) {
-                                    final newEndTime = DateTime(
-                                      pickedDate.year,
-                                      pickedDate.month,
-                                      pickedDate.day,
-                                      pickedTime.hour,
-                                      pickedTime.minute,
-                                    );
-                                    if (newEndTime.isAfter(selectedStartTime)) {
-                                      setDialogState(() {
-                                        selectedEndTime = newEndTime;
-                                      });
-                                    } else {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'End time must be after start time',
+                                      if (newEndTime
+                                          .isAfter(selectedStartTime)) {
+                                        setDialogState(() {
+                                          selectedEndTime = newEndTime;
+                                        });
+                                        checkLocalAvailability();
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'End time must be after start time',
+                                            ),
+                                            backgroundColor: Colors.red,
                                           ),
-                                          backgroundColor: Colors.red,
-                                        ),
-                                      );
+                                        );
+                                      }
                                     }
                                   }
-                                }
-                              },
-                              icon: const Icon(Icons.access_time),
-                              label: const Text('Select'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Card(
-                  color: Colors.blue[50],
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.schedule, color: Colors.blue),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Duration: ${_calculateDuration(selectedStartTime, selectedEndTime)}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue,
-                            fontSize: 14,
+                                },
+                                icon: const Icon(Icons.access_time),
+                                label: const Text('Select'),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final slotNum = int.tryParse(slotNumberController.text);
-
-                if (slotNum == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter a valid slot number'),
-                      backgroundColor: Colors.red,
+                  const SizedBox(height: 12),
+                  Card(
+                    color: Colors.blue[50],
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.schedule, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Duration: ${_calculateDuration(selectedStartTime, selectedEndTime)}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                  return;
-                }
-
-                if (customerNameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter customer name'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-
-                if (vehicleNumberController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter vehicle number'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-
-                final response = await ApiService.createManualBooking(
-                  parkingId: widget.parkingId,
-                  slotNumber: slotNum,
-                  customerName: customerNameController.text.trim(),
-                  vehicleNumber: vehicleNumberController.text.trim(),
-                  startTime: selectedStartTime.toUtc().toIso8601String(),
-                  endTime: selectedEndTime.toUtc().toIso8601String(),
-                );
-
-                if (response['success']) {
-                  if (context.mounted) {
-                    Navigator.pop(context, true);
-                    _loadParkingDetails();
-                  }
-                }
-              },
-              child: const Text('Book'),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: (isCheckingAvailability || selectedSlot == null)
+                    ? null
+                    : () async {
+                        if (customerNameController.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Please enter customer name')),
+                          );
+                          return;
+                        }
+                        if (vehicleNumberController.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Please enter vehicle number')),
+                          );
+                          return;
+                        }
+                        if (phoneNumberController.text.trim().isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Please enter phone number')),
+                          );
+                          return;
+                        }
+
+                        final response = await ApiService.createManualBooking(
+                          parkingId: widget.parkingId,
+                          slotNumber: selectedSlot!,
+                          customerName: customerNameController.text.trim(),
+                          vehicleNumber: vehicleNumberController.text.trim(),
+                          phoneNumber: phoneNumberController.text.trim(),
+                          startTime: selectedStartTime.toUtc().toIso8601String(),
+                          endTime: selectedEndTime.toUtc().toIso8601String(),
+                        );
+
+                        if (response['success']) {
+                          if (context.mounted) {
+                            Navigator.pop(context, true);
+                            _loadParkingDetails();
+                          }
+                        } else {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    response['message'] ?? 'Booking failed'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                child: const Text('Book'),
+              ),
+            ],
+          );
+        },
       ),
     );
 
@@ -753,15 +820,43 @@ class _BookedSlotRow extends StatelessWidget {
       leading: CircleAvatar(
         backgroundColor: statusColor.withOpacity(.2),
         child: Text(
-          slot.slotNumber.toString(),
-          style: TextStyle(color: statusColor),
+          "S${slot.slotNumber}",
+          style: TextStyle(
+            color: statusColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
         ),
       ),
       title: Text(slot.customerName),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(slot.vehicleNumber),
+          Row(
+            children: [
+              const Icon(Icons.grid_view, size: 14, color: Colors.blue),
+              const SizedBox(width: 4),
+              Text(
+                "Slot #${slot.slotNumber}",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Icon(Icons.directions_car, size: 14, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(slot.vehicleNumber),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.phone, size: 14, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(slot.phoneNumber),
+            ],
+          ),
           const SizedBox(height: 4),
           Text(
             "Start: ${_format(slot.startTime)}",
@@ -878,6 +973,7 @@ class BookedSlot {
   final String vehicleNumber;
   final String startTime;
   final String endTime;
+  final String phoneNumber;
   final String? id;
 
   BookedSlot({
@@ -886,6 +982,7 @@ class BookedSlot {
     required this.vehicleNumber,
     required this.startTime,
     required this.endTime,
+    required this.phoneNumber,
     this.id,
   });
 
@@ -910,6 +1007,7 @@ class BookedSlot {
       vehicleNumber: json['vehicleNumber'] ?? '',
       startTime: start,
       endTime: end,
+      phoneNumber: json['phoneNumber'] ?? json['phone'] ?? 'N/A',
       id: json['_id'] ?? json['id'],
     );
   }

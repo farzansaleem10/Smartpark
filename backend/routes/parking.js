@@ -435,15 +435,21 @@ router.get('/:id/availability', async (req, res) => {
       ],
     });
 
-    const bookedSlots = overlappingBookings.length;
-    const availableSlots = parking.totalSlots - bookedSlots;
+    const bookedSlots = overlappingBookings.map(b => b.slotNumber);
+    const availableSlotNumbers = [];
+    for (let i = 1; i <= parking.totalSlots; i++) {
+      if (!bookedSlots.includes(i)) {
+        availableSlotNumbers.push(i);
+      }
+    }
 
     res.json({
       success: true,
       data: {
         totalSlots: parking.totalSlots,
-        availableSlots: Math.max(0, availableSlots),
-        bookedSlots,
+        availableSlots: availableSlotNumbers.length,
+        availableSlotNumbers,
+        bookedSlots: bookedSlots.length,
       },
     });
   } catch (error) {

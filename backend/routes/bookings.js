@@ -33,7 +33,15 @@ async function recalculateAvailableSlots(parkingId) {
  */
 router.post('/manual', authenticate, async (req, res) => {
   try {
-    const { parkingId, slotNumber, customerName, vehicleNumber, startTime, endTime } = req.body;
+    const { 
+      parkingId, 
+      slotNumber, 
+      customerName, 
+      vehicleNumber, 
+      phoneNumber,
+      startTime, 
+      endTime 
+    } = req.body;
 
     const parking = await Parking.findById(parkingId);
     if (!parking) {
@@ -93,6 +101,7 @@ router.post('/manual', authenticate, async (req, res) => {
       slotNumber: slot,
       customerName,
       vehicleNumber,
+      phoneNumber,
       startTime: start,
       endTime: end,
       duration,
@@ -199,6 +208,10 @@ router.post('/', [
   body('parking').notEmpty().withMessage('Parking ID is required'),
   body('startTime').notEmpty().withMessage('Start time is required'),
   body('endTime').notEmpty().withMessage('End time is required'),
+  body('customerName').optional().notEmpty().withMessage('Customer name must not be empty if provided'),
+  body('vehicleNumber').notEmpty().withMessage('Vehicle number is required'),
+  body('phoneNumber').optional().notEmpty().withMessage('Phone number must not be empty if provided'),
+  body('slotNumber').isInt({ min: 1 }).withMessage('Slot number is required'),
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -210,7 +223,16 @@ router.post('/', [
       });
     }
 
-    const { parking: parkingId, startTime, endTime, paymentMethod } = req.body;
+    const { 
+      parking: parkingId, 
+      startTime, 
+      endTime, 
+      paymentMethod,
+      customerName,
+      vehicleNumber,
+      phoneNumber,
+      slotNumber: requestedSlot
+    } = req.body;
 
     // Get parking details
     const parking = await Parking.findById(parkingId);
@@ -261,17 +283,21 @@ router.post('/', [
     const duration = (end - start) / (1000 * 60 * 60); // in hours
     const totalPrice = duration * parking.pricePerHour;
 
-    // Assign slot number (simple logic - can be improved)
+    // Validate and Assign slot number
     const bookedSlots = overlappingBookings.map(b => b.slotNumber);
-    let slotNumber = 1;
-    while (bookedSlots.includes(slotNumber) && slotNumber <= parking.totalSlots) {
-      slotNumber++;
-    }
-
-    if (slotNumber > parking.totalSlots) {
+    let slotNumber = requestedSlot;
+    
+    if (bookedSlots.includes(slotNumber)) {
       return res.status(400).json({
         success: false,
-        message: 'No available slots',
+        message: 'Selected slot is already booked for this time range',
+      });
+    }
+
+    if (slotNumber > parking.totalSlots || slotNumber < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid slot number',
       });
     }
 
@@ -289,6 +315,9 @@ router.post('/', [
       user: req.user._id,
       parking: parkingId,
       slotNumber,
+      customerName: customerName || req.user.name,
+      vehicleNumber,
+      phoneNumber: phoneNumber || req.user.phone || 'N/A', // Use user phone or fallback
       startTime: start,
       endTime: end,
       duration,
@@ -297,13 +326,16 @@ router.post('/', [
       status: 'confirmed',
     });
 
-    // Generate QR code
+    // Generate QR code with all required details
     const qrCode = await QRCode.toDataURL(JSON.stringify({
       bookingId: booking._id.toString(),
-      parkingId: parkingId,
-      userId: req.user._id.toString(),
-      startTime: start.toISOString(),
-      endTime: end.toISOString(),
+      parkingName: parking.name,
+      customerName: customerName || req.user.name,
+      vehicleNumber: vehicleNumber,
+      phoneNumber: phoneNumber || req.user.phone || 'N/A',
+      slotNumber: slotNumber,
+      startTime: start.toLocaleString(), // Readable time
+      endTime: end.toLocaleString(),
     }));
 
     booking.qrCode = qrCode;

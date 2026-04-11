@@ -27,6 +27,16 @@ class _BookingScreenState extends State<BookingScreen> {
   String _paymentMethod = 'cash';
   bool _isLoading = false;
   int? _availableSlots;
+  List<int> _availableSlotNumbers = [];
+  int? _selectedSlot;
+  
+  final _vehicleNumberController = TextEditingController();
+
+  @override
+  void dispose() {
+    _vehicleNumberController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -52,6 +62,15 @@ class _BookingScreenState extends State<BookingScreen> {
       if (response['success'] && response['data'] != null) {
         setState(() {
           _availableSlots = response['data']['availableSlots'];
+          _availableSlotNumbers = List<int>.from(response['data']['availableSlotNumbers'] ?? []);
+          // Reset selected slot if it's no longer available
+          if (_selectedSlot != null && !_availableSlotNumbers.contains(_selectedSlot)) {
+            _selectedSlot = null;
+          }
+          // Default to first available slot if none selected
+          if (_selectedSlot == null && _availableSlotNumbers.isNotEmpty) {
+            _selectedSlot = _availableSlotNumbers.first;
+          }
         });
       }
     } catch (e) {
@@ -147,11 +166,26 @@ class _BookingScreenState extends State<BookingScreen> {
     final hours = durationMinutes / 60.0;
     return hours * widget.parking.pricePerHour;
   }
-
   Future<void> _createBooking() async {
+    final vehicleNumber = _vehicleNumberController.text.trim();
+
     if (_startTime == null || _endTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select start and end time')),
+      );
+      return;
+    }
+
+    if (vehicleNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter vehicle number')),
+      );
+      return;
+    }
+
+    if (_selectedSlot == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a slot')),
       );
       return;
     }
@@ -172,6 +206,8 @@ class _BookingScreenState extends State<BookingScreen> {
         parkingId: widget.parking.id,
         startTime: _startTime!,
         endTime: _endTime!,
+        vehicleNumber: vehicleNumber,
+        slotNumber: _selectedSlot!,
         paymentMethod: _paymentMethod,
       );
 
@@ -216,6 +252,7 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   Widget build(BuildContext context) {
     final price = _calculatePrice();
+    final vehicleNumber = _vehicleNumberController.text.trim();
 
     return Scaffold(
       appBar: AppBar(
@@ -311,6 +348,62 @@ class _BookingScreenState extends State<BookingScreen> {
                 ),
               ),
             ],
+            const SizedBox(height: 24),
+            Text(
+              'Customer Details',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _vehicleNumberController,
+                      decoration: const InputDecoration(
+                        labelText: 'Vehicle Number',
+                        prefixIcon: Icon(Icons.directions_car),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Select Slot',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: DropdownButtonFormField<int>(
+                  value: _selectedSlot,
+                  decoration: const InputDecoration(
+                    labelText: 'Available Slots',
+                    prefixIcon: Icon(Icons.grid_view),
+                  ),
+                  items: _availableSlotNumbers.map((slot) {
+                    return DropdownMenuItem<int>(
+                      value: slot,
+                      child: Text('Slot #$slot'),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedSlot = value;
+                    });
+                  },
+                  hint: const Text('Checking availability...'),
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             Text(
               'Payment Method',
