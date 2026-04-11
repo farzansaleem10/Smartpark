@@ -562,16 +562,16 @@ class _NavigationScreenState extends State<NavigationScreen>
                             ),
                           ),
                           const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.tune, size: 22),
-                            onPressed: () {},
-                            color: Colors.grey[700],
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.share, size: 22),
-                            onPressed: () {},
-                            color: Colors.grey[700],
-                          ),
+                          // IconButton(
+                          //   icon: const Icon(Icons.tune, size: 22),
+                          //   onPressed: () {},
+                          //   color: Colors.grey[700],
+                          // ),
+                          // IconButton(
+                          //   icon: const Icon(Icons.share, size: 22),
+                          //   onPressed: () {},
+                          //   color: Colors.grey[700],
+                          // ),
                           IconButton(
                             icon: const Icon(Icons.close, size: 22),
                             onPressed: () => Navigator.pop(context),
@@ -685,53 +685,53 @@ class _NavigationScreenState extends State<NavigationScreen>
                           ),
                           const SizedBox(width: 10),
                           // Add stops
-                          Expanded(
-                            flex: 2,
-                            child: OutlinedButton.icon(
-                              onPressed: () {},
-                              icon: Icon(Icons.add_location_alt,
-                                  size: 18, color: Colors.grey[700]),
-                              label: Text(
-                                'Add stops',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey[700],
-                                ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                                side: BorderSide(color: Colors.grey[300]!),
-                              ),
-                            ),
-                          ),
+                          // Expanded(
+                          //   flex: 2,
+                          //   child: OutlinedButton.icon(
+                          //     onPressed: () {},
+                          //     icon: Icon(Icons.add_location_alt,
+                          //         size: 18, color: Colors.grey[700]),
+                          //     label: Text(
+                          //       'Add stops',
+                          //       style: TextStyle(
+                          //         fontSize: 14,
+                          //         fontWeight: FontWeight.w600,
+                          //         color: Colors.grey[700],
+                          //       ),
+                          //     ),
+                          //     style: OutlinedButton.styleFrom(
+                          //       padding:
+                          //           const EdgeInsets.symmetric(vertical: 14),
+                          //       shape: RoundedRectangleBorder(
+                          //         borderRadius: BorderRadius.circular(24),
+                          //       ),
+                          //       side: BorderSide(color: Colors.grey[300]!),
+                          //     ),
+                          //   ),
+                          // ),
                           const SizedBox(width: 10),
                           // Share button
-                          OutlinedButton.icon(
-                            onPressed: () {},
-                            icon: Icon(Icons.share,
-                                size: 18, color: Colors.grey[700]),
-                            label: Text(
-                              'Share',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[700],
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 14, horizontal: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              side: BorderSide(color: Colors.grey[300]!),
-                            ),
-                          ),
+                          // OutlinedButton.icon(
+                          //   onPressed: () {},
+                          //   icon: Icon(Icons.share,
+                          //       size: 18, color: Colors.grey[700]),
+                          //   label: Text(
+                          //     'Share',
+                          //     style: TextStyle(
+                          //       fontSize: 14,
+                          //       fontWeight: FontWeight.w600,
+                          //       color: Colors.grey[700],
+                          //     ),
+                          //   ),
+                          //   style: OutlinedButton.styleFrom(
+                          //     padding: const EdgeInsets.symmetric(
+                          //         vertical: 14, horizontal: 12),
+                          //     shape: RoundedRectangleBorder(
+                          //       borderRadius: BorderRadius.circular(24),
+                          //     ),
+                          //     side: BorderSide(color: Colors.grey[300]!),
+                          //   ),
+                          // ),
                         ],
                       ),
                     ),
@@ -887,19 +887,19 @@ class _NavigationScreenState extends State<NavigationScreen>
                       ),
                     ),
                     // Microphone icon (decorative)
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.mic,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
+                    // Container(
+                    //   width: 44,
+                    //   height: 44,
+                    //   decoration: BoxDecoration(
+                    //     color: Colors.white.withOpacity(0.2),
+                    //     shape: BoxShape.circle,
+                    //   ),
+                    //   // child: const Icon(
+                    //   //   Icons.mic,
+                    //   //   color: Colors.white,
+                    //   //   size: 24,
+                    //   // ),
+                    // ),
                   ],
                 ),
               ),
@@ -950,17 +950,17 @@ class _NavigationScreenState extends State<NavigationScreen>
           ),
 
           // ── Right side action buttons ──
-          Positioned(
-            bottom: 110,
-            right: 16,
-            child: Column(
-              children: [
-                _buildActionCircle(Icons.search, () {}),
-                const SizedBox(height: 10),
-                _buildActionCircle(Icons.volume_up, () {}),
-              ],
-            ),
-          ),
+          // Positioned(
+          //   bottom: 110,
+          //   right: 16,
+          //   child: Column(
+          //     children: [
+          //       _buildActionCircle(Icons.search, () {}),
+          //       const SizedBox(height: 10),
+          //       _buildActionCircle(Icons.volume_up, () {}),
+          //     ],
+          //   ),
+          // ),
 
           // ── Bottom: Remaining info + Dismiss ──
           Positioned(

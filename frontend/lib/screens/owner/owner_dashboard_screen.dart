@@ -503,7 +503,7 @@ class _ParkingCard extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton(
+                    child: OutlinedButton(
                       onPressed: onViewDetails,
                       child: const Text('View Details'),
                     ),
