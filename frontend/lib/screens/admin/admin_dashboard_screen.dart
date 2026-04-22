@@ -396,6 +396,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                                 _buildDetailRow('Slots', '${parking['availableSlots'] ?? 0}/${parking['totalSlots'] ?? 0}'),
                                 _buildDetailRow('Price/hr', '₹${parking['pricePerHour'] ?? 0}'),
                                 _buildDetailRow('Status', '${parking['approvalStatus'] ?? 'unknown'}'),
+                                _buildDetailRow('Type', '${parking['type'] ?? 'Land'}'),
                                 _buildDetailRow('Verified', '${parking['isVerified'] == true ? 'Yes' : 'No'}'),
                                 
                                 const SizedBox(height: 12),
@@ -653,7 +654,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         final id = request['_id'] ?? '';
         final name = request['name'] ?? 'Unknown Parking';
         final status = request['approvalStatus'] ?? 'pending';
-        final type = request['type'] ?? 'Land';
+        final type = request['type'] ?? 'Land'; // Uses database value, defaults to Land if missing
         final licenseDocPath = request['licenseDocument']?.toString() ?? '';
 
         String ownerName = 'Unknown Owner';

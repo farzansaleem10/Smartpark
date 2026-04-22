@@ -10,6 +10,12 @@ const parkingSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  type: {
+    type: String,
+    required: [true, 'Please provide parking type'],
+    enum: ['Land', 'Pay Parking', 'Home'],
+    default: 'Land',
+  },
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
