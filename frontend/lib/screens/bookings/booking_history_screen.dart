@@ -100,7 +100,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
           final displayEnd = booking.endTime.add(const Duration(hours: 5, minutes: 30));
           // --- UPDATE END ---
 
-          final isPast = booking.status.toLowerCase() == 'completed' || 
+          final now = DateTime.now();
+          final isPast = booking.endTime.isBefore(now) ||
+                         booking.status.toLowerCase() == 'completed' || 
                          booking.status.toLowerCase() == 'cancelled';
 
           return Card(
@@ -203,14 +205,19 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> with Single
   }
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+
     // Logic to separate bookings
-    final activeBookings = _bookings.where((b) => 
-      b.status.toLowerCase() == 'confirmed' || b.status.toLowerCase() == 'active'
-    ).toList();
+    final activeBookings = _bookings.where((b) {
+      final status = b.status.toLowerCase();
+      final isFinished = b.endTime.isBefore(now) || status == 'completed' || status == 'cancelled';
+      return !isFinished;
+    }).toList();
     
-    final pastBookings = _bookings.where((b) => 
-      b.status.toLowerCase() == 'completed' || b.status.toLowerCase() == 'cancelled'
-    ).toList();
+    final pastBookings = _bookings.where((b) {
+      final status = b.status.toLowerCase();
+      return b.endTime.isBefore(now) || status == 'completed' || status == 'cancelled';
+    }).toList();
 
     return Scaffold(
       appBar: AppBar(
